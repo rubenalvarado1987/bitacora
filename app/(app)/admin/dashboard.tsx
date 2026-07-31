@@ -4,7 +4,7 @@ import { Stack } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../../src/firebase";
 import { useAuth } from "../../../src/context/AuthContext";
-import { listenCalendarEvents } from "../../../src/data/calendarRepository";
+import { listenCalendarEvents, eventOccursOnDate } from "../../../src/data/calendarRepository";
 import { colors, radius, spacing } from "../../../src/theme";
 import { CalendarEvent } from "../../../src/types";
 
@@ -39,7 +39,7 @@ export default function AdminDashboardScreen() {
     })();
 
     return listenCalendarEvents(membership.organizationId, (events) =>
-      setTodayEvents(events.filter((e) => e.date === TODAY))
+      setTodayEvents(events.filter((e) => eventOccursOnDate(e, TODAY)))
     );
   }, [membership?.organizationId]);
 
@@ -67,7 +67,9 @@ export default function AdminDashboardScreen() {
             todayEvents.map((e) => (
               <View key={e.id} style={styles.eventCard}>
                 <Text style={styles.eventTitle}>{e.title}</Text>
-                {e.time ? <Text style={styles.eventMeta}>{e.time}</Text> : null}
+                {e.startTime ? (
+                  <Text style={styles.eventMeta}>{e.startTime}{e.endTime ? ` – ${e.endTime}` : ""}</Text>
+                ) : null}
                 {e.description ? <Text style={styles.eventMeta}>{e.description}</Text> : null}
               </View>
             ))

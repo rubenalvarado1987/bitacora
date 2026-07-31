@@ -148,8 +148,12 @@ export interface CalendarEvent {
   id: string;
   organizationId: string;
   title: string;
+  // "single": un día puntual (usa `date`). "range": desde `date` hasta `endDate`. "daily": se repite todos los días.
+  recurrence: "single" | "range" | "daily";
   date: string;
-  time?: string;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
   description?: string;
   salonId?: string;
   scope: "global" | "salon";

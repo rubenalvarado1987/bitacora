@@ -12,6 +12,7 @@ import { useAuth } from "../../src/context/AuthContext";
 import { showAlert } from "../../src/utils/alert";
 import {
   CalendarEventDraft,
+  eventOccursOnDate,
   listenCalendarEvents,
   removeCalendarEvent,
   saveCalendarEvent,
@@ -19,7 +20,7 @@ import {
 import { listenMyProfile, listenParticipants, listenSalons } from "../../src/data/adminRepository";
 import DateField from "../../src/components/DateField";
 import TimeField from "../../src/components/TimeField";
-import { formatCLDate, todayISODate, toISODate } from "../../src/utils/date";
+import { formatCLDate, parseISODate, todayISODate, toISODate } from "../../src/utils/date";
 import { colors, radius, spacing } from "../../src/theme";
 import { CalendarEvent, Person, ProfileRecord, Salon } from "../../src/types";
 
@@ -28,8 +29,30 @@ const MONTHS_ES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 const WEEKDAYS_ES = ["L", "M", "M", "J", "V", "S", "D"];
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-const emptyDraft: CalendarEventDraft = { title: "", date: "", time: "", description: "", scope: "global" };
+const RECURRENCE_OPTIONS: { key: CalendarEventDraft["recurrence"]; label: string }[] = [
+  { key: "single", label: "Un día" },
+  { key: "range", label: "Rango de días" },
+  { key: "daily", label: "Todos los días" },
+];
+
+const emptyDraft: CalendarEventDraft = {
+  title: "",
+  recurrence: "single",
+  date: "",
+  endDate: "",
+  startTime: "",
+  endTime: "",
+  description: "",
+  scope: "global",
+};
+
+function shiftDay(iso: string, delta: number) {
+  const date = parseISODate(iso) ?? new Date();
+  date.setDate(date.getDate() + delta);
+  return toISODate(date);
+}
 
 export default function CalendarioScreen() {
   const { membership } = useAuth();
@@ -43,6 +66,7 @@ export default function CalendarioScreen() {
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [linkedParticipants, setLinkedParticipants] = useState<Person[]>([]);
 
+  const [viewMode, setViewMode] = useState<"mensual" | "diaria">("mensual");
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(todayISODate());
   const [filter, setFilter] = useState<string>("todos");
@@ -119,14 +143,13 @@ export default function CalendarioScreen() {
     return visibleEvents.filter((e) => e.scope === "salon" && e.salonId === filter);
   }, [visibleEvents, filter]);
 
-  const eventsByDate = useMemo(() => {
-    const map: Record<string, CalendarEvent[]> = {};
-    filteredEvents.forEach((e) => {
-      if (!map[e.date]) map[e.date] = [];
-      map[e.date].push(e);
-    });
-    return map;
-  }, [filteredEvents]);
+  const selectedDayEvents = useMemo(() => {
+    const items = filteredEvents.filter((e) => eventOccursOnDate(e, selectedDate));
+    return items.sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""));
+  }, [filteredEvents, selectedDate]);
+
+  const allDayEvents = selectedDayEvents.filter((e) => !e.startTime);
+  const timedEvents = selectedDayEvents.filter((e) => e.startTime);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -138,10 +161,11 @@ export default function CalendarioScreen() {
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const changeMonth = (delta: number) => setCursor(new Date(year, month + delta, 1));
-  const changeYear = (delta: number) => setCursor(new Date(year + delta, month, 1));
-
-  const dayEventsForSelected = eventsByDate[selectedDate] ?? [];
+  // Se usan updaters funcionales porque react-native-web a veces dispara onPress más de
+  // una vez por click; con un closure fijo esto hacía que el mes pareciera "no cambiar".
+  const changeMonth = (delta: number) => setCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  const changeYear = (delta: number) => setCursor((prev) => new Date(prev.getFullYear() + delta, prev.getMonth(), 1));
+  const changeSelectedDay = (delta: number) => setSelectedDate((prev) => shiftDay(prev, delta));
 
   const canManageEvent = (event: CalendarEvent) =>
     isAdmin || (isEditorRole && event.scope === "salon" && visibleSalonIds.has(event.salonId ?? ""));
@@ -165,8 +189,20 @@ export default function CalendarioScreen() {
 
   const handleSave = async () => {
     if (!membership?.organizationId || !membership.uid) return;
-    if (!draft.title.trim() || !draft.date.trim()) {
-      showAlert("Faltan datos", "Completa título y fecha.");
+    if (!draft.title.trim()) {
+      showAlert("Faltan datos", "Completa el título.");
+      return;
+    }
+    if (draft.recurrence !== "daily" && !draft.date.trim()) {
+      showAlert("Faltan datos", "Completa la fecha.");
+      return;
+    }
+    if (draft.recurrence === "range" && draft.endDate && draft.endDate < draft.date) {
+      showAlert("Rango inválido", "La fecha de término debe ser igual o posterior a la de inicio.");
+      return;
+    }
+    if (draft.startTime && draft.endTime && draft.endTime <= draft.startTime) {
+      showAlert("Horario inválido", "La hora de término debe ser posterior a la de inicio.");
       return;
     }
     if (draft.scope === "salon" && !draft.salonId) {
@@ -177,8 +213,12 @@ export default function CalendarioScreen() {
       showAlert("Sin permiso", "Solo puedes agregar actividades en tus salones asignados.");
       return;
     }
+    const payload: CalendarEventDraft = {
+      ...draft,
+      date: draft.recurrence === "daily" ? draft.date || todayISODate() : draft.date,
+    };
     try {
-      await saveCalendarEvent(membership.organizationId, draft, membership.uid, editingId ?? undefined);
+      await saveCalendarEvent(membership.organizationId, payload, membership.uid, editingId ?? undefined);
       resetForm();
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
@@ -189,8 +229,11 @@ export default function CalendarioScreen() {
     setEditingId(event.id);
     setDraft({
       title: event.title,
+      recurrence: event.recurrence,
       date: event.date,
-      time: event.time ?? "",
+      endDate: event.endDate ?? "",
+      startTime: event.startTime ?? "",
+      endTime: event.endTime ?? "",
       description: event.description ?? "",
       salonId: event.salonId ?? "",
       scope: event.scope,
@@ -206,10 +249,52 @@ export default function CalendarioScreen() {
 
   const salonName = (id?: string) => allSalons.find((s) => s.id === id)?.name ?? "Salón";
 
+  const renderEventCard = (e: CalendarEvent) => (
+    <View key={e.id} style={styles.eventCard}>
+      <View style={styles.eventHeader}>
+        <Text style={styles.eventTitle}>{e.title}</Text>
+        <View style={styles.scopeBadge}>
+          <Text style={styles.scopeBadgeText}>{e.scope === "global" ? "Global" : salonName(e.salonId)}</Text>
+        </View>
+      </View>
+      {e.startTime ? (
+        <Text style={styles.eventMeta}>{e.startTime}{e.endTime ? ` – ${e.endTime}` : ""}</Text>
+      ) : (
+        <Text style={styles.eventMeta}>Todo el día</Text>
+      )}
+      {e.recurrence === "range" ? (
+        <Text style={styles.eventMeta}>{formatCLDate(e.date)} – {formatCLDate(e.endDate || e.date)}</Text>
+      ) : null}
+      {e.recurrence === "daily" ? <Text style={styles.eventMeta}>Se repite todos los días</Text> : null}
+      {e.description ? <Text style={styles.eventMeta}>{e.description}</Text> : null}
+      {canManageEvent(e) ? (
+        <View style={styles.actionsRow}>
+          <Pressable onPress={() => startEdit(e)}><Text style={styles.actionLink}>Editar</Text></Pressable>
+          <Pressable onPress={() => handleDelete(e.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: "Calendario" }} />
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Vista mensual / diaria */}
+        <View style={styles.viewToggleRow}>
+          {(["mensual", "diaria"] as const).map((v) => (
+            <Pressable
+              key={v}
+              onPress={() => setViewMode(v)}
+              style={[styles.viewToggleChip, viewMode === v && styles.viewToggleChipActive]}
+            >
+              <Text style={[styles.viewToggleText, viewMode === v && styles.viewToggleTextActive]}>
+                {v === "mensual" ? "Vista mensual" : "Vista diaria"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         {/* Filtro por salón / global */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {filterChips.map((chip) => (
@@ -223,58 +308,13 @@ export default function CalendarioScreen() {
           ))}
         </ScrollView>
 
-        {/* Navegación de mes / año */}
-        <View style={styles.monthNav}>
-          <Pressable onPress={() => changeYear(-1)} style={styles.navButton} hitSlop={8}>
-            <Text style={styles.navButtonText}>«</Text>
-          </Pressable>
-          <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={8}>
-            <Text style={styles.navButtonText}>‹</Text>
-          </Pressable>
-          <Text style={styles.monthTitle}>{MONTHS_ES[month]} {year}</Text>
-          <Pressable onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={8}>
-            <Text style={styles.navButtonText}>›</Text>
-          </Pressable>
-          <Pressable onPress={() => changeYear(1)} style={styles.navButton} hitSlop={8}>
-            <Text style={styles.navButtonText}>»</Text>
-          </Pressable>
-        </View>
-
-        {/* Grilla del mes */}
-        <View style={styles.weekRow}>
-          {WEEKDAYS_ES.map((w, i) => (
-            <Text key={`${w}-${i}`} style={styles.weekday}>{w}</Text>
-          ))}
-        </View>
-        <View style={styles.grid}>
-          {cells.map((day, idx) => {
-            if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
-            const iso = toISODate(new Date(year, month, day));
-            const dayEvents = eventsByDate[iso] ?? [];
-            const isSelected = iso === selectedDate;
-            const isToday = iso === todayISODate();
-            return (
-              <Pressable
-                key={iso}
-                style={[styles.dayCell, isToday && styles.dayCellToday, isSelected && styles.dayCellSelected]}
-                onPress={() => setSelectedDate(iso)}
-              >
-                <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
-                {dayEvents.length > 0 ? (
-                  <View style={styles.dayDotsRow}>
-                    {dayEvents.slice(0, 3).map((e) => (
-                      <View key={e.id} style={[styles.dayDot, e.scope === "global" ? styles.dayDotGlobal : styles.dayDotSalon]} />
-                    ))}
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Eventos del día seleccionado */}
+        {/* Encabezado compartido: fecha seleccionada + acción de agregar */}
         <View style={styles.selectedHeader}>
-          <Text style={styles.selectedTitle}>{formatCLDate(selectedDate)}</Text>
+          {viewMode === "mensual" ? (
+            <Text style={styles.selectedTitle}>{formatCLDate(selectedDate)}</Text>
+          ) : (
+            <Text style={styles.selectedTitle}>Actividades</Text>
+          )}
           {canEdit ? (
             <Pressable onPress={() => (showForm ? resetForm() : openNewForm())} style={styles.addButton}>
               <Text style={styles.addButtonText}>{showForm ? "Cancelar" : "+ Agregar"}</Text>
@@ -286,8 +326,40 @@ export default function CalendarioScreen() {
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>{editingId ? "Editar evento" : "Nuevo evento"}</Text>
             <TextInput value={draft.title} onChangeText={(v) => setDraft({ ...draft, title: v })} placeholder="Título" style={styles.input} />
-            <DateField value={draft.date} onChange={(v) => setDraft({ ...draft, date: v })} placeholder="Fecha (DD-MM-AAAA)" />
-            <TimeField value={draft.time ?? ""} onChange={(v) => setDraft({ ...draft, time: v })} placeholder="Hora (HH:MM)" />
+
+            <View style={styles.scopeRow}>
+              {RECURRENCE_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => setDraft({ ...draft, recurrence: opt.key })}
+                  style={[styles.scopeChip, draft.recurrence === opt.key && styles.scopeChipActive]}
+                >
+                  <Text style={[styles.scopeText, draft.recurrence === opt.key && styles.scopeTextActive]}>{opt.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {draft.recurrence !== "daily" ? (
+              <DateField
+                value={draft.date}
+                onChange={(v) => setDraft({ ...draft, date: v })}
+                placeholder={draft.recurrence === "range" ? "Desde (DD-MM-AAAA)" : "Fecha (DD-MM-AAAA)"}
+              />
+            ) : null}
+            {draft.recurrence === "range" ? (
+              <DateField value={draft.endDate ?? ""} onChange={(v) => setDraft({ ...draft, endDate: v })} placeholder="Hasta (DD-MM-AAAA)" />
+            ) : null}
+
+            <View style={styles.timeRow}>
+              <View style={styles.timeField}>
+                <Text style={styles.fieldLabel}>Hora inicio</Text>
+                <TimeField value={draft.startTime ?? ""} onChange={(v) => setDraft({ ...draft, startTime: v })} placeholder="Inicio" />
+              </View>
+              <View style={styles.timeField}>
+                <Text style={styles.fieldLabel}>Hora fin</Text>
+                <TimeField value={draft.endTime ?? ""} onChange={(v) => setDraft({ ...draft, endTime: v })} placeholder="Fin" />
+              </View>
+            </View>
+
             <TextInput value={draft.description ?? ""} onChangeText={(v) => setDraft({ ...draft, description: v })} placeholder="Descripción" style={styles.input} />
             {isAdmin ? (
               <View style={styles.scopeRow}>
@@ -313,27 +385,95 @@ export default function CalendarioScreen() {
           </View>
         ) : null}
 
-        {dayEventsForSelected.length === 0 ? (
-          <Text style={styles.empty}>No hay eventos para este día.</Text>
-        ) : (
-          dayEventsForSelected.map((e) => (
-            <View key={e.id} style={styles.eventCard}>
-              <View style={styles.eventHeader}>
-                <Text style={styles.eventTitle}>{e.title}</Text>
-                <View style={styles.scopeBadge}>
-                  <Text style={styles.scopeBadgeText}>{e.scope === "global" ? "Global" : salonName(e.salonId)}</Text>
-                </View>
-              </View>
-              {e.time ? <Text style={styles.eventMeta}>{e.time}</Text> : null}
-              {e.description ? <Text style={styles.eventMeta}>{e.description}</Text> : null}
-              {canManageEvent(e) ? (
-                <View style={styles.actionsRow}>
-                  <Pressable onPress={() => startEdit(e)}><Text style={styles.actionLink}>Editar</Text></Pressable>
-                  <Pressable onPress={() => handleDelete(e.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
-                </View>
-              ) : null}
+        {viewMode === "mensual" ? (
+          <>
+            {/* Navegación de mes / año */}
+            <View style={styles.monthNav}>
+              <Pressable onPress={() => changeYear(-1)} style={styles.navButton} hitSlop={8}>
+                <Text style={styles.navButtonText}>«</Text>
+              </Pressable>
+              <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={8}>
+                <Text style={styles.navButtonText}>‹</Text>
+              </Pressable>
+              <Text style={styles.monthTitle}>{MONTHS_ES[month]} {year}</Text>
+              <Pressable onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={8}>
+                <Text style={styles.navButtonText}>›</Text>
+              </Pressable>
+              <Pressable onPress={() => changeYear(1)} style={styles.navButton} hitSlop={8}>
+                <Text style={styles.navButtonText}>»</Text>
+              </Pressable>
             </View>
-          ))
+
+            {/* Grilla del mes */}
+            <View style={styles.weekRow}>
+              {WEEKDAYS_ES.map((w, i) => (
+                <Text key={`${w}-${i}`} style={styles.weekday}>{w}</Text>
+              ))}
+            </View>
+            <View style={styles.grid}>
+              {cells.map((day, idx) => {
+                if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
+                const iso = toISODate(new Date(year, month, day));
+                const dayEvents = filteredEvents.filter((e) => eventOccursOnDate(e, iso));
+                const isSelected = iso === selectedDate;
+                const isToday = iso === todayISODate();
+                return (
+                  <Pressable
+                    key={iso}
+                    style={[styles.dayCell, isToday && styles.dayCellToday, isSelected && styles.dayCellSelected]}
+                    onPress={() => setSelectedDate(iso)}
+                  >
+                    <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                    {dayEvents.length > 0 ? (
+                      <View style={styles.dayDotsRow}>
+                        {dayEvents.slice(0, 3).map((e) => (
+                          <View key={e.id} style={[styles.dayDot, e.scope === "global" ? styles.dayDotGlobal : styles.dayDotSalon]} />
+                        ))}
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {selectedDayEvents.length === 0 ? (
+              <Text style={styles.empty}>No hay eventos para este día.</Text>
+            ) : (
+              selectedDayEvents.map(renderEventCard)
+            )}
+          </>
+        ) : (
+          <>
+            {/* Navegación de día */}
+            <View style={styles.monthNav}>
+              <Pressable onPress={() => changeSelectedDay(-1)} style={styles.navButton} hitSlop={8}>
+                <Text style={styles.navButtonText}>‹</Text>
+              </Pressable>
+              <Text style={styles.monthTitle}>{formatCLDate(selectedDate)}</Text>
+              <Pressable onPress={() => changeSelectedDay(1)} style={styles.navButton} hitSlop={8}>
+                <Text style={styles.navButtonText}>›</Text>
+              </Pressable>
+            </View>
+
+            {allDayEvents.length > 0 ? (
+              <View style={styles.allDaySection}>
+                <Text style={styles.allDayLabel}>Todo el día</Text>
+                {allDayEvents.map(renderEventCard)}
+              </View>
+            ) : null}
+
+            <View style={styles.hourList}>
+              {HOURS.map((h) => {
+                const hourEvents = timedEvents.filter((e) => Number((e.startTime ?? "0:0").split(":")[0]) === h);
+                return (
+                  <View key={h} style={styles.hourRow}>
+                    <Text style={styles.hourLabel}>{h.toString().padStart(2, "0")}:00</Text>
+                    <View style={styles.hourContent}>{hourEvents.map(renderEventCard)}</View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -343,6 +483,11 @@ export default function CalendarioScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
+  viewToggleRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  viewToggleChip: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 8, alignItems: "center", backgroundColor: colors.card },
+  viewToggleChipActive: { backgroundColor: colors.teal, borderColor: colors.teal },
+  viewToggleText: { fontSize: 13, color: colors.slate, fontWeight: "700" },
+  viewToggleTextActive: { color: "#fff" },
   filterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   filterChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 14, backgroundColor: colors.paper },
   filterChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
@@ -376,8 +521,17 @@ const styles = StyleSheet.create({
   scopeChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
   scopeText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
   scopeTextActive: { color: colors.tealDark },
+  timeRow: { flexDirection: "row", gap: spacing.sm },
+  timeField: { flex: 1 },
+  fieldLabel: { fontSize: 11, color: colors.slate, fontWeight: "600", marginBottom: 4 },
   saveButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" },
   saveButtonText: { color: "#fff", fontWeight: "700" },
+  allDaySection: { marginBottom: spacing.md },
+  allDayLabel: { fontSize: 12, fontWeight: "700", color: colors.tealDark, marginBottom: spacing.xs },
+  hourList: { borderTopWidth: 1, borderTopColor: colors.line },
+  hourRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: spacing.xs, minHeight: 44 },
+  hourLabel: { width: 56, fontSize: 11, color: colors.slate, fontWeight: "600", paddingTop: 4 },
+  hourContent: { flex: 1 },
   eventCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   eventHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
   eventTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.ink },
