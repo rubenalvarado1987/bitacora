@@ -39,7 +39,8 @@ export default function DateField({ value, onChange, placeholder = "Seleccionar 
     setOpen(false);
   };
 
-  const changeMonth = (delta: number) => setCursor(new Date(year, month + delta, 1));
+  const changeMonth = (delta: number) =>
+    setCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
 
   return (
     <>
