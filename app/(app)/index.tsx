@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
-import { listenParticipants, listenProfiles } from "../../src/data/adminRepository";
-import { Person, ProfileRecord } from "../../src/types";
+import { listenParticipants, listenPlans, listenProfiles, listenSalons } from "../../src/data/adminRepository";
+import { EconomicPlan, Person, ProfileRecord, Salon } from "../../src/types";
 import { colors, radius, spacing } from "../../src/theme";
 
 export default function HomeScreen() {
@@ -11,14 +11,20 @@ export default function HomeScreen() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [participants, setParticipants] = useState<Person[]>([]);
+  const [salons, setSalons] = useState<Salon[]>([]);
+  const [plans, setPlans] = useState<EconomicPlan[]>([]);
 
   useEffect(() => {
     if (membership?.role !== "admin" || !membership.organizationId) return;
     const unsubProfiles = listenProfiles(membership.organizationId, setProfiles);
     const unsubParticipants = listenParticipants(membership.organizationId, setParticipants);
+    const unsubSalons = listenSalons(membership.organizationId, setSalons);
+    const unsubPlans = listenPlans(membership.organizationId, setPlans);
     return () => {
       unsubProfiles();
       unsubParticipants();
+      unsubSalons();
+      unsubPlans();
     };
   }, [membership?.role, membership?.organizationId]);
 
@@ -27,8 +33,10 @@ export default function HomeScreen() {
       { key: "perfiles", label: "Perfiles creados", done: profiles.length > 0 },
       { key: "profesionales", label: "Profesionales asignados", done: profiles.some((p) => p.role === "editor") },
       { key: "participantes", label: "Participantes registrados", done: participants.length > 0 },
+      { key: "salones", label: "Salones creados", done: salons.length > 0 },
+      { key: "planes", label: "Planes económicos creados", done: plans.length > 0 },
     ],
-    [profiles, participants]
+    [profiles, participants, salons, plans]
   );
   const completedSteps = setupSteps.filter((s) => s.done).length;
   const progressPercent = Math.round((completedSteps / setupSteps.length) * 100);
@@ -65,7 +73,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {membership?.role === "admin" && progressPercent < 100 ? (
+      {membership?.role === "admin" ? (
         <View style={styles.progressCard}>
           <View style={styles.progressHeader}>
             <Text style={styles.progressTitle}>Creación de tu centro</Text>
@@ -75,7 +83,9 @@ export default function HomeScreen() {
             <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
           </View>
           <Text style={styles.progressNote}>
-            Completa estos pasos para dejar tu centro listo para operar.
+            {progressPercent >= 100
+              ? "Tu centro está completamente configurado."
+              : "Completa estos pasos para dejar tu centro listo para operar."}
           </Text>
           {setupSteps.map((step) => (
             <View key={step.key} style={styles.stepRow}>
