@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 
 const cards = [
   { href: "/admin/dashboard", title: "Dashboard", body: "Resumen operativo: participantes, salones y agenda del día." },
@@ -18,7 +19,8 @@ export default function AdminHubScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: "Panel Admin" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin" }]} />
       <View style={styles.hero}>
         <Text style={styles.kicker}>Bitacora</Text>
         <Text style={styles.title}>Centro de administración</Text>

@@ -7,6 +7,7 @@ import { useAuth } from "../../../src/context/AuthContext";
 import { listenCalendarEvents, eventOccursOnDate } from "../../../src/data/calendarRepository";
 import { colors, radius, spacing } from "../../../src/theme";
 import { CalendarEvent } from "../../../src/types";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 
 interface Stats {
   participants: number;
@@ -45,7 +46,8 @@ export default function AdminDashboardScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: "Dashboard" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Dashboard" }]} />
 
       {loading ? (
         <ActivityIndicator color={colors.teal} style={{ marginTop: spacing.xl }} />

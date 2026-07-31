@@ -8,6 +8,7 @@ import { listenEntries } from "../../../../../src/data/entriesRepository";
 import { EntryCard } from "../../../../../src/components/EntryCard";
 import { colors, radius, spacing } from "../../../../../src/theme";
 import { Entry, Person } from "../../../../../src/types";
+import Breadcrumb from "../../../../../src/components/Breadcrumb";
 
 export default function EditorParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,7 +44,8 @@ export default function EditorParticipantScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: person?.name ?? "Participante" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }, { label: person?.name ?? "Participante" }]} />
       <FlatList
         data={entries}
         keyExtractor={(item) => item.id}

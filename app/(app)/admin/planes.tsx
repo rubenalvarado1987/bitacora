@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { EconomicPlan } from "../../../src/types";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 import { PlanDraft, listenPlans, removePlan, savePlan } from "../../../src/data/adminRepository";
 import { showAlert } from "../../../src/utils/alert";
 
@@ -58,7 +59,8 @@ export default function PlansScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: "Planes económicos" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Planes económicos" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{editingId ? "Editar plan" : "Nuevo plan"}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre" style={styles.input} />

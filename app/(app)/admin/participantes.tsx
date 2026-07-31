@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 import { Person } from "../../../src/types";
 import {
   ParticipantDraft,
@@ -175,7 +176,8 @@ export default function ParticipantsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: "Participantes" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Participantes" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre del participante" style={styles.input} />

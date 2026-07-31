@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 import { ProfileRecord } from "../../../src/types";
 import {
   ProfileDraft,
@@ -150,7 +151,8 @@ export default function AdminProfilesScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: "Perfiles" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Perfiles" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
         <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre visible" style={styles.input} />

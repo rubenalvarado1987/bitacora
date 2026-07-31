@@ -16,6 +16,7 @@ import { useAuth } from "../../../src/context/AuthContext";
 import { listenMessages, sendMessage } from "../../../src/data/chatRepository";
 import { colors, radius, spacing } from "../../../src/theme";
 import { ChatMessage, ChatThread } from "../../../src/types";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 
 export default function ChatThreadScreen() {
   const { threadId } = useLocalSearchParams<{ threadId: string }>();
@@ -71,7 +72,8 @@ export default function ChatThreadScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={90}
     >
-      <Stack.Screen options={{ title: thread?.title ?? "Chat" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat", href: "/chat" }, { label: thread?.title ?? "Chat" }]} />
 
       <FlatList
         ref={flatRef}

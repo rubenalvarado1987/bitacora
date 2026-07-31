@@ -13,6 +13,7 @@ import { createThread, listenThreads, ThreadDraft } from "../../../src/data/chat
 import { colors, radius, spacing } from "../../../src/theme";
 import { ChatThread } from "../../../src/types";
 import { showAlert } from "../../../src/utils/alert";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 
 const SCOPES = ["global", "salon", "participant"] as const;
 
@@ -54,7 +55,8 @@ export default function ChatIndexScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Chat" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat" }]} />
 
       {showForm && canCreate ? (
         <View style={styles.formCard}>

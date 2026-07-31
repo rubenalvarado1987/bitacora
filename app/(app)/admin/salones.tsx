@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { Salon } from "../../../src/types";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 import { SalonDraft, listenSalons, removeSalon, saveSalon } from "../../../src/data/adminRepository";
 import { showAlert } from "../../../src/utils/alert";
 
@@ -57,7 +58,8 @@ export default function SalonsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: "Salones" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Salones" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{editingId ? "Editar salón" : "Nuevo salón"}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre del salón" style={styles.input} />

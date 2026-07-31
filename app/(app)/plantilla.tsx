@@ -7,6 +7,7 @@ import { useAuth } from "../../src/context/AuthContext";
 import { Organization, Template, TemplateField, FieldType } from "../../src/types";
 import { colors, radius, spacing } from "../../src/theme";
 import { showAlert } from "../../src/utils/alert";
+import Breadcrumb from "../../src/components/Breadcrumb";
 
 const TIPOS: FieldType[] = ["text", "number", "date", "time", "select", "scale", "checklist", "photo", "signature"];
 
@@ -75,7 +76,8 @@ export default function PlantillaScreen() {
   if (membership?.role !== "admin") {
     return (
       <View style={styles.center}>
-        <Stack.Screen options={{ title: "Plantilla" }} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Plantilla" }]} />
         <Text style={styles.emptyText}>Solo un administrador de la organización puede editar la plantilla.</Text>
       </View>
     );
@@ -91,8 +93,9 @@ export default function PlantillaScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: `Plantilla · ${template.name}` }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Plantilla" }]} />
         <Text style={styles.hint}>
           Esta es la plantilla que ven todos los profesionales de la organización al crear un registro. Los
           campos nuevos se agregan como texto por defecto; ajusta el tipo desde Firestore o desde una futura

@@ -5,6 +5,7 @@ import { useAuth } from "../../../src/context/AuthContext";
 import { listenParticipants } from "../../../src/data/adminRepository";
 import { colors, radius, spacing } from "../../../src/theme";
 import { Person } from "../../../src/types";
+import Breadcrumb from "../../../src/components/Breadcrumb";
 
 export default function ApoderadoPanelScreen() {
   const { membership } = useAuth();
@@ -23,7 +24,8 @@ export default function ApoderadoPanelScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Mis participantes" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes" }]} />
       {loading ? (
         <ActivityIndicator color={colors.teal} style={{ marginTop: spacing.xl }} />
       ) : (

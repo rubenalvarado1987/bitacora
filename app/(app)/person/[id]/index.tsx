@@ -8,6 +8,7 @@ import { Entry, Person, Template } from "../../../../src/types";
 import { EntryCard } from "../../../../src/components/EntryCard";
 import { FieldDisplay } from "../../../../src/components/SectionField";
 import { colors, radius, spacing } from "../../../../src/theme";
+import Breadcrumb from "../../../../src/components/Breadcrumb";
 
 export default function PersonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,7 +71,8 @@ export default function PersonScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: person.name }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: person.name }]} />
 
       <FlatList
         data={entries}
