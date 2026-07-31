@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { showAlert } from "../../src/utils/alert";
 import {
@@ -55,6 +55,7 @@ function shiftDay(iso: string, delta: number) {
 }
 
 export default function CalendarioScreen() {
+  const router = useRouter();
   const { membership } = useAuth();
   const role = membership?.role ?? "lector";
   const isAdmin = role === "admin";
@@ -280,6 +281,14 @@ export default function CalendarioScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: "Calendario" }} />
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.breadcrumbRow}>
+          <Pressable onPress={() => router.replace("/")} hitSlop={8}>
+            <Text style={styles.breadcrumbLink}>Inicio</Text>
+          </Pressable>
+          <Text style={styles.breadcrumbSeparator}>›</Text>
+          <Text style={styles.breadcrumbCurrent}>Calendario</Text>
+        </View>
+
         {/* Vista mensual / diaria */}
         <View style={styles.viewToggleRow}>
           {(["mensual", "diaria"] as const).map((v) => (
@@ -494,6 +503,10 @@ export default function CalendarioScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
+  breadcrumbRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
+  breadcrumbLink: { fontSize: 13, color: colors.teal, fontWeight: "700" },
+  breadcrumbSeparator: { fontSize: 13, color: colors.slate },
+  breadcrumbCurrent: { fontSize: 13, color: colors.slate, fontWeight: "600" },
   viewToggleRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   viewToggleChip: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 8, alignItems: "center", backgroundColor: colors.card },
   viewToggleChipActive: { backgroundColor: colors.teal, borderColor: colors.teal },
