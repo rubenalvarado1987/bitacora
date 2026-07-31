@@ -407,47 +407,83 @@ export default function CalendarioScreen() {
               </Pressable>
             </View>
 
-            {/* Grilla del mes */}
-            <View style={styles.weekRow}>
-              {WEEKDAYS_ES.map((w, i) => (
-                <Text key={`${w}-${i}`} style={styles.weekday}>{w}</Text>
-              ))}
-            </View>
-            <View style={styles.grid}>
-              {cells.map((day, idx) => {
-                if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
-                const iso = toISODate(new Date(year, month, day));
-                const dayEvents = filteredEvents.filter((e) => eventOccursOnDate(e, iso));
-                const isSelected = iso === selectedDate;
-                const isToday = iso === todayISODate();
-                const visibleEvents = dayEvents.slice(0, 2);
-                const extraCount = dayEvents.length - visibleEvents.length;
-                return (
-                  <Pressable
-                    key={iso}
-                    style={[styles.dayCell, isToday && styles.dayCellToday, isSelected && styles.dayCellSelected]}
-                    onPress={() => setSelectedDate(iso)}
+            {/* Grilla del mes, estilo calendario de papel cuadriculado */}
+            <View style={styles.calendarPaper}>
+              <View style={styles.weekRow}>
+                {WEEKDAYS_ES.map((w, i) => (
+                  <View
+                    key={`${w}-${i}`}
+                    style={[
+                      styles.weekdayCell,
+                      i === 5 && styles.weekdayCellSaturday,
+                      i === 6 && styles.weekdayCellSunday,
+                      i === 6 && styles.weekdayCellLast,
+                    ]}
                   >
-                    <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
-                    {visibleEvents.map((e) => (
+                    <Text style={[styles.weekday, i === 5 && styles.weekdaySaturday, i === 6 && styles.weekdaySunday]}>{w}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.grid}>
+                {cells.map((day, idx) => {
+                  const column = idx % 7;
+                  const isLastColumn = column === 6;
+                  const isWeekend = column === 5 || column === 6;
+                  if (day === null) {
+                    return (
+                      <View
+                        key={`empty-${idx}`}
+                        style={[styles.dayCell, isLastColumn && styles.dayCellLastColumn, isWeekend && styles.dayCellWeekend]}
+                      />
+                    );
+                  }
+                  const iso = toISODate(new Date(year, month, day));
+                  const dayEvents = filteredEvents.filter((e) => eventOccursOnDate(e, iso));
+                  const isSelected = iso === selectedDate;
+                  const isToday = iso === todayISODate();
+                  const visibleEvents = dayEvents.slice(0, 2);
+                  const extraCount = dayEvents.length - visibleEvents.length;
+                  return (
+                    <Pressable
+                      key={iso}
+                      style={[
+                        styles.dayCell,
+                        isLastColumn && styles.dayCellLastColumn,
+                        isWeekend && styles.dayCellWeekend,
+                        isToday && styles.dayCellToday,
+                        isSelected && styles.dayCellSelected,
+                      ]}
+                      onPress={() => setSelectedDate(iso)}
+                    >
                       <Text
-                        key={e.id}
-                        numberOfLines={1}
                         style={[
-                          styles.dayEventTitle,
-                          e.scope === "global" ? styles.dayEventTitleGlobal : styles.dayEventTitleSalon,
-                          isSelected && styles.dayEventTitleSelected,
+                          styles.dayText,
+                          column === 6 && styles.dayTextSunday,
+                          isSelected && styles.dayTextSelected,
                         ]}
                       >
-                        {e.title}
+                        {day}
                       </Text>
-                    ))}
-                    {extraCount > 0 ? (
-                      <Text style={[styles.dayEventMore, isSelected && styles.dayEventTitleSelected]}>+{extraCount} más</Text>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
+                      {visibleEvents.map((e) => (
+                        <Text
+                          key={e.id}
+                          numberOfLines={1}
+                          style={[
+                            styles.dayEventTitle,
+                            e.scope === "global" ? styles.dayEventTitleGlobal : styles.dayEventTitleSalon,
+                            isSelected && styles.dayEventTitleSelected,
+                          ]}
+                        >
+                          {e.title}
+                        </Text>
+                      ))}
+                      {extraCount > 0 ? (
+                        <Text style={[styles.dayEventMore, isSelected && styles.dayEventTitleSelected]}>+{extraCount} más</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
 
             {selectedDayEvents.length === 0 ? (
@@ -512,12 +548,47 @@ const styles = StyleSheet.create({
   navButtonText: { fontSize: 18, color: colors.teal, fontWeight: "700" },
   monthTitle: { fontSize: 15, fontWeight: "700", color: colors.ink, textTransform: "capitalize", minWidth: 140, textAlign: "center" },
   weekRow: { flexDirection: "row" },
-  weekday: { flex: 1, textAlign: "center", fontSize: 11, color: colors.slate, fontWeight: "600" },
-  grid: { flexDirection: "row", flexWrap: "wrap", marginBottom: spacing.md },
-  dayCell: { width: `${100 / 7}%`, minHeight: 62, paddingVertical: 4, paddingHorizontal: 2, alignItems: "stretch", borderRadius: radius.sm },
+  weekday: { fontSize: 11, color: colors.slate, fontWeight: "700" },
+  weekdaySaturday: { color: colors.tealDark },
+  weekdaySunday: { color: colors.danger },
+  weekdayCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.paper,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+  },
+  weekdayCellSaturday: { backgroundColor: colors.tealTint },
+  weekdayCellSunday: { backgroundColor: colors.dangerTint },
+  weekdayCellLast: { borderRightWidth: 0 },
+  calendarPaper: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    overflow: "hidden",
+    marginBottom: spacing.md,
+    backgroundColor: colors.card,
+  },
+  grid: { flexDirection: "row", flexWrap: "wrap" },
+  dayCell: {
+    width: `${100 / 7}%`,
+    minHeight: 62,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    alignItems: "stretch",
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+  },
+  dayCellLastColumn: { borderRightWidth: 0 },
+  dayCellWeekend: { backgroundColor: colors.paper },
   dayCellToday: { backgroundColor: colors.tealTint },
   dayCellSelected: { backgroundColor: colors.teal },
   dayText: { fontSize: 13, color: colors.ink, textAlign: "center" },
+  dayTextSunday: { color: colors.danger },
   dayTextSelected: { color: "#fff", fontWeight: "700" },
   dayEventTitle: { fontSize: 9, fontWeight: "600", marginTop: 2, paddingHorizontal: 2, borderRadius: 3 },
   dayEventTitleGlobal: { color: colors.amber },
