@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -16,24 +16,36 @@ import {
   removeCalendarEvent,
   saveCalendarEvent,
 } from "../../src/data/calendarRepository";
+import { listenMyProfile, listenParticipants, listenSalons } from "../../src/data/adminRepository";
 import DateField from "../../src/components/DateField";
 import TimeField from "../../src/components/TimeField";
-import { formatCLDate } from "../../src/utils/date";
+import { formatCLDate, todayISODate, toISODate } from "../../src/utils/date";
 import { colors, radius, spacing } from "../../src/theme";
-import { CalendarEvent } from "../../src/types";
+import { CalendarEvent, Person, ProfileRecord, Salon } from "../../src/types";
 
-const SCOPES = ["global", "salon"] as const;
-type ScopeFilter = "todos" | "global" | "salon";
+const MONTHS_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+const WEEKDAYS_ES = ["L", "M", "M", "J", "V", "S", "D"];
 
 const emptyDraft: CalendarEventDraft = { title: "", date: "", time: "", description: "", scope: "global" };
 
 export default function CalendarioScreen() {
   const { membership } = useAuth();
   const role = membership?.role ?? "lector";
-  const canEdit = role === "admin" || role === "editor" || role === "profesional";
+  const isAdmin = role === "admin";
+  const isEditorRole = role === "editor" || role === "profesional";
+  const isViewerRole = role === "lector" || role === "lectura";
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [filter, setFilter] = useState<ScopeFilter>("todos");
+  const [allSalons, setAllSalons] = useState<Salon[]>([]);
+  const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
+  const [linkedParticipants, setLinkedParticipants] = useState<Person[]>([]);
+
+  const [cursor, setCursor] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState(todayISODate());
+  const [filter, setFilter] = useState<string>("todos");
   const [draft, setDraft] = useState<CalendarEventDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -43,16 +55,96 @@ export default function CalendarioScreen() {
     return listenCalendarEvents(membership.organizationId, setEvents);
   }, [membership?.organizationId]);
 
-  const filtered = filter === "todos" ? events : events.filter((e) => e.scope === filter);
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenSalons(membership.organizationId, setAllSalons);
+  }, [membership?.organizationId]);
 
-  // Group events by date
-  const grouped = filtered.reduce<Record<string, CalendarEvent[]>>((acc, e) => {
-    if (!acc[e.date]) acc[e.date] = [];
-    acc[e.date].push(e);
-    return acc;
-  }, {});
+  useEffect(() => {
+    if (!membership?.organizationId || !membership.uid || !isEditorRole) {
+      setMyProfile(null);
+      return;
+    }
+    return listenMyProfile(membership.organizationId, membership.uid, setMyProfile);
+  }, [membership?.organizationId, membership?.uid, isEditorRole]);
 
-  const sortedDates = Object.keys(grouped).sort();
+  useEffect(() => {
+    if (!membership?.organizationId || !isViewerRole) {
+      setLinkedParticipants([]);
+      return;
+    }
+    return listenParticipants(membership.organizationId, (items) =>
+      setLinkedParticipants(items.filter((p) => p.linkedUid && p.linkedUid === membership.uid))
+    );
+  }, [membership?.organizationId, membership?.uid, isViewerRole]);
+
+  // Salones visibles según el rol: admin ve todos, editor/profesional solo los suyos,
+  // apoderado solo los de sus participantes vinculados, y un "lector" de staff (sin
+  // participantes vinculados) ve todos en modo solo lectura.
+  const isGuardian = isViewerRole && linkedParticipants.length > 0;
+  const visibleSalons = useMemo(() => {
+    if (isAdmin) return allSalons;
+    if (isEditorRole) return myProfile ? allSalons.filter((s) => s.professionalIds.includes(myProfile.id)) : [];
+    if (isGuardian) {
+      const ids = new Set(linkedParticipants.flatMap((p) => p.salonIds ?? []));
+      return allSalons.filter((s) => ids.has(s.id));
+    }
+    return allSalons;
+  }, [isAdmin, isEditorRole, isGuardian, allSalons, myProfile, linkedParticipants]);
+
+  const visibleSalonIds = useMemo(() => new Set(visibleSalons.map((s) => s.id)), [visibleSalons]);
+  const canEdit = isAdmin || (isEditorRole && visibleSalons.length > 0);
+
+  const visibleEvents = useMemo(
+    () => events.filter((e) => e.scope === "global" || (e.salonId && visibleSalonIds.has(e.salonId))),
+    [events, visibleSalonIds]
+  );
+
+  const filterChips = useMemo(() => {
+    const chips: { key: string; label: string }[] = [{ key: "global", label: "Global" }];
+    visibleSalons.forEach((s) => chips.push({ key: s.id, label: s.name }));
+    if (chips.length > 1) chips.unshift({ key: "todos", label: "Todos" });
+    return chips;
+  }, [visibleSalons]);
+
+  useEffect(() => {
+    if (!filterChips.some((c) => c.key === filter)) {
+      setFilter(filterChips[0]?.key ?? "todos");
+    }
+  }, [filterChips, filter]);
+
+  const filteredEvents = useMemo(() => {
+    if (filter === "todos") return visibleEvents;
+    if (filter === "global") return visibleEvents.filter((e) => e.scope === "global");
+    return visibleEvents.filter((e) => e.scope === "salon" && e.salonId === filter);
+  }, [visibleEvents, filter]);
+
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, CalendarEvent[]> = {};
+    filteredEvents.forEach((e) => {
+      if (!map[e.date]) map[e.date] = [];
+      map[e.date].push(e);
+    });
+    return map;
+  }, [filteredEvents]);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7; // lunes = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(firstWeekday).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const changeMonth = (delta: number) => setCursor(new Date(year, month + delta, 1));
+  const changeYear = (delta: number) => setCursor(new Date(year + delta, month, 1));
+
+  const dayEventsForSelected = eventsByDate[selectedDate] ?? [];
+
+  const canManageEvent = (event: CalendarEvent) =>
+    isAdmin || (isEditorRole && event.scope === "salon" && visibleSalonIds.has(event.salonId ?? ""));
 
   const resetForm = () => {
     setDraft(emptyDraft);
@@ -60,10 +152,29 @@ export default function CalendarioScreen() {
     setShowForm(false);
   };
 
+  const openNewForm = () => {
+    setEditingId(null);
+    setDraft({
+      ...emptyDraft,
+      date: selectedDate,
+      scope: isEditorRole ? "salon" : "global",
+      salonId: isEditorRole ? visibleSalons[0]?.id : undefined,
+    });
+    setShowForm(true);
+  };
+
   const handleSave = async () => {
     if (!membership?.organizationId || !membership.uid) return;
     if (!draft.title.trim() || !draft.date.trim()) {
       showAlert("Faltan datos", "Completa título y fecha.");
+      return;
+    }
+    if (draft.scope === "salon" && !draft.salonId) {
+      showAlert("Falta el salón", "Selecciona un salón para esta actividad.");
+      return;
+    }
+    if (isEditorRole && draft.scope === "salon" && !visibleSalonIds.has(draft.salonId ?? "")) {
+      showAlert("Sin permiso", "Solo puedes agregar actividades en tus salones asignados.");
       return;
     }
     try {
@@ -93,31 +204,84 @@ export default function CalendarioScreen() {
     if (editingId === eventId) resetForm();
   };
 
+  const salonName = (id?: string) => allSalons.find((s) => s.id === id)?.name ?? "Salón";
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: "Calendario" }} />
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Scope filter chips */}
-        <View style={styles.filterRow}>
-          {(["todos", "global", "salon"] as ScopeFilter[]).map((scope) => (
+        {/* Filtro por salón / global */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {filterChips.map((chip) => (
             <Pressable
-              key={scope}
-              onPress={() => setFilter(scope)}
-              style={[styles.filterChip, filter === scope && styles.filterChipActive]}
+              key={chip.key}
+              onPress={() => setFilter(chip.key)}
+              style={[styles.filterChip, filter === chip.key && styles.filterChipActive]}
             >
-              <Text style={[styles.filterText, filter === scope && styles.filterTextActive]}>
-                {scope === "todos" ? "Todos" : scope === "global" ? "Global" : "Por salón"}
-              </Text>
+              <Text style={[styles.filterText, filter === chip.key && styles.filterTextActive]}>{chip.label}</Text>
             </Pressable>
           ))}
+        </ScrollView>
+
+        {/* Navegación de mes / año */}
+        <View style={styles.monthNav}>
+          <Pressable onPress={() => changeYear(-1)} style={styles.navButton} hitSlop={8}>
+            <Text style={styles.navButtonText}>«</Text>
+          </Pressable>
+          <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={8}>
+            <Text style={styles.navButtonText}>‹</Text>
+          </Pressable>
+          <Text style={styles.monthTitle}>{MONTHS_ES[month]} {year}</Text>
+          <Pressable onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={8}>
+            <Text style={styles.navButtonText}>›</Text>
+          </Pressable>
+          <Pressable onPress={() => changeYear(1)} style={styles.navButton} hitSlop={8}>
+            <Text style={styles.navButtonText}>»</Text>
+          </Pressable>
+        </View>
+
+        {/* Grilla del mes */}
+        <View style={styles.weekRow}>
+          {WEEKDAYS_ES.map((w, i) => (
+            <Text key={`${w}-${i}`} style={styles.weekday}>{w}</Text>
+          ))}
+        </View>
+        <View style={styles.grid}>
+          {cells.map((day, idx) => {
+            if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
+            const iso = toISODate(new Date(year, month, day));
+            const dayEvents = eventsByDate[iso] ?? [];
+            const isSelected = iso === selectedDate;
+            const isToday = iso === todayISODate();
+            return (
+              <Pressable
+                key={iso}
+                style={[styles.dayCell, isToday && styles.dayCellToday, isSelected && styles.dayCellSelected]}
+                onPress={() => setSelectedDate(iso)}
+              >
+                <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                {dayEvents.length > 0 ? (
+                  <View style={styles.dayDotsRow}>
+                    {dayEvents.slice(0, 3).map((e) => (
+                      <View key={e.id} style={[styles.dayDot, e.scope === "global" ? styles.dayDotGlobal : styles.dayDotSalon]} />
+                    ))}
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Eventos del día seleccionado */}
+        <View style={styles.selectedHeader}>
+          <Text style={styles.selectedTitle}>{formatCLDate(selectedDate)}</Text>
           {canEdit ? (
-            <Pressable onPress={() => setShowForm((v) => !v)} style={styles.addButton}>
+            <Pressable onPress={() => (showForm ? resetForm() : openNewForm())} style={styles.addButton}>
               <Text style={styles.addButtonText}>{showForm ? "Cancelar" : "+ Agregar"}</Text>
             </Pressable>
           ) : null}
         </View>
 
-        {/* Form */}
         {showForm && canEdit ? (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>{editingId ? "Editar evento" : "Nuevo evento"}</Text>
@@ -125,44 +289,49 @@ export default function CalendarioScreen() {
             <DateField value={draft.date} onChange={(v) => setDraft({ ...draft, date: v })} placeholder="Fecha (DD-MM-AAAA)" />
             <TimeField value={draft.time ?? ""} onChange={(v) => setDraft({ ...draft, time: v })} placeholder="Hora (HH:MM)" />
             <TextInput value={draft.description ?? ""} onChangeText={(v) => setDraft({ ...draft, description: v })} placeholder="Descripción" style={styles.input} />
-            <View style={styles.scopeRow}>
-              {SCOPES.map((s) => (
-                <Pressable key={s} onPress={() => setDraft({ ...draft, scope: s })} style={[styles.scopeChip, draft.scope === s && styles.scopeChipActive]}>
-                  <Text style={[styles.scopeText, draft.scope === s && styles.scopeTextActive]}>{s}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {isAdmin ? (
+              <View style={styles.scopeRow}>
+                {(["global", "salon"] as const).map((s) => (
+                  <Pressable key={s} onPress={() => setDraft({ ...draft, scope: s })} style={[styles.scopeChip, draft.scope === s && styles.scopeChipActive]}>
+                    <Text style={[styles.scopeText, draft.scope === s && styles.scopeTextActive]}>{s === "global" ? "Global" : "Por salón"}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {draft.scope === "salon" ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
+                {(isAdmin ? allSalons : visibleSalons).map((s) => (
+                  <Pressable key={s.id} onPress={() => setDraft({ ...draft, salonId: s.id })} style={[styles.scopeChip, draft.salonId === s.id && styles.scopeChipActive]}>
+                    <Text style={[styles.scopeText, draft.salonId === s.id && styles.scopeTextActive]}>{s.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
             <Pressable onPress={handleSave} style={styles.saveButton}>
               <Text style={styles.saveButtonText}>Guardar</Text>
             </Pressable>
           </View>
         ) : null}
 
-        {/* Event list grouped by date */}
-        {sortedDates.length === 0 ? (
-          <Text style={styles.empty}>No hay eventos para mostrar.</Text>
+        {dayEventsForSelected.length === 0 ? (
+          <Text style={styles.empty}>No hay eventos para este día.</Text>
         ) : (
-          sortedDates.map((date) => (
-            <View key={date}>
-              <Text style={styles.dateHeader}>{formatCLDate(date)}</Text>
-              {grouped[date].map((e) => (
-                <View key={e.id} style={styles.eventCard}>
-                  <View style={styles.eventHeader}>
-                    <Text style={styles.eventTitle}>{e.title}</Text>
-                    <View style={styles.scopeBadge}>
-                      <Text style={styles.scopeBadgeText}>{e.scope}</Text>
-                    </View>
-                  </View>
-                  {e.time ? <Text style={styles.eventMeta}>{e.time}</Text> : null}
-                  {e.description ? <Text style={styles.eventMeta}>{e.description}</Text> : null}
-                  {canEdit ? (
-                    <View style={styles.actionsRow}>
-                      <Pressable onPress={() => startEdit(e)}><Text style={styles.actionLink}>Editar</Text></Pressable>
-                      <Pressable onPress={() => handleDelete(e.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
-                    </View>
-                  ) : null}
+          dayEventsForSelected.map((e) => (
+            <View key={e.id} style={styles.eventCard}>
+              <View style={styles.eventHeader}>
+                <Text style={styles.eventTitle}>{e.title}</Text>
+                <View style={styles.scopeBadge}>
+                  <Text style={styles.scopeBadgeText}>{e.scope === "global" ? "Global" : salonName(e.salonId)}</Text>
                 </View>
-              ))}
+              </View>
+              {e.time ? <Text style={styles.eventMeta}>{e.time}</Text> : null}
+              {e.description ? <Text style={styles.eventMeta}>{e.description}</Text> : null}
+              {canManageEvent(e) ? (
+                <View style={styles.actionsRow}>
+                  <Pressable onPress={() => startEdit(e)}><Text style={styles.actionLink}>Editar</Text></Pressable>
+                  <Pressable onPress={() => handleDelete(e.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
+                </View>
+              ) : null}
             </View>
           ))
         )}
@@ -174,12 +343,30 @@ export default function CalendarioScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
+  filterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   filterChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 14, backgroundColor: colors.paper },
   filterChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
   filterText: { fontSize: 13, color: colors.slate, fontWeight: "600" },
   filterTextActive: { color: colors.tealDark },
-  addButton: { marginLeft: "auto", backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 14 },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  navButton: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  navButtonText: { fontSize: 18, color: colors.teal, fontWeight: "700" },
+  monthTitle: { fontSize: 15, fontWeight: "700", color: colors.ink, textTransform: "capitalize", minWidth: 140, textAlign: "center" },
+  weekRow: { flexDirection: "row" },
+  weekday: { flex: 1, textAlign: "center", fontSize: 11, color: colors.slate, fontWeight: "600" },
+  grid: { flexDirection: "row", flexWrap: "wrap", marginBottom: spacing.md },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
+  dayCellToday: { backgroundColor: colors.tealTint },
+  dayCellSelected: { backgroundColor: colors.teal },
+  dayText: { fontSize: 13, color: colors.ink },
+  dayTextSelected: { color: "#fff", fontWeight: "700" },
+  dayDotsRow: { flexDirection: "row", gap: 2, marginTop: 2 },
+  dayDot: { width: 4, height: 4, borderRadius: 2 },
+  dayDotGlobal: { backgroundColor: colors.amber },
+  dayDotSalon: { backgroundColor: colors.teal },
+  selectedHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  selectedTitle: { fontSize: 14, fontWeight: "700", color: colors.tealDark, textTransform: "capitalize" },
+  addButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 14 },
   addButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   formCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   formTitle: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
@@ -191,7 +378,6 @@ const styles = StyleSheet.create({
   scopeTextActive: { color: colors.tealDark },
   saveButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" },
   saveButtonText: { color: "#fff", fontWeight: "700" },
-  dateHeader: { fontSize: 13, fontWeight: "700", color: colors.tealDark, marginTop: spacing.md, marginBottom: spacing.xs },
   eventCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   eventHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
   eventTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.ink },

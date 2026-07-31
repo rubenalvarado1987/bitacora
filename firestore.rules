@@ -68,7 +68,11 @@ service cloud.firestore {
       }
 
       match /profiles/{profileId} {
-        allow read, write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+        // Un admin lee todos los perfiles; un editor/profesional solo puede leer su propio perfil
+        // (necesario para saber qué salones tiene asignados en el calendario).
+        allow read: if request.auth != null && esMiembro(orgId)
+          && (miRol(orgId) == 'admin' || resource.data.linkedUid == request.auth.uid);
+        allow write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
       }
 
       match /plans/{planId} {
@@ -76,7 +80,10 @@ service cloud.firestore {
       }
 
       match /salons/{salonId} {
-        allow read, write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+        // Cualquier miembro de la organización puede leer los salones (se usan para filtrar
+        // el calendario y para que editores/apoderados vean sus salones asignados).
+        allow read: if request.auth != null && esMiembro(orgId);
+        allow write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
       }
 
       match /calendar/{eventId} {

@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { EconomicPlan, Person, ProfileRecord, Salon } from "../types";
 
@@ -58,6 +58,19 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
 
 export async function removeProfile(organizationId: string, profileId: string) {
   await deleteDoc(doc(db, "organizations", organizationId, "profiles", profileId));
+}
+
+// Perfil propio de un editor/profesional (para saber qué salones tiene asignados). No requiere rol admin:
+// las reglas permiten leer solo el/los doc(s) cuyo linkedUid coincide con el uid del solicitante.
+export function listenMyProfile(
+  organizationId: string,
+  uid: string,
+  onChange: (profile: ProfileRecord | null) => void
+) {
+  const q = query(collection(db, "organizations", organizationId, "profiles"), where("linkedUid", "==", uid));
+  return onSnapshot(q, (snapshot) => {
+    onChange(snapshot.empty ? null : ({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ProfileRecord));
+  });
 }
 
 export function listenPlans(organizationId: string, onChange: (items: EconomicPlan[]) => void) {
