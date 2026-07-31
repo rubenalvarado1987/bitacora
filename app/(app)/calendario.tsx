@@ -417,6 +417,8 @@ export default function CalendarioScreen() {
                 const dayEvents = filteredEvents.filter((e) => eventOccursOnDate(e, iso));
                 const isSelected = iso === selectedDate;
                 const isToday = iso === todayISODate();
+                const visibleEvents = dayEvents.slice(0, 2);
+                const extraCount = dayEvents.length - visibleEvents.length;
                 return (
                   <Pressable
                     key={iso}
@@ -424,12 +426,21 @@ export default function CalendarioScreen() {
                     onPress={() => setSelectedDate(iso)}
                   >
                     <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
-                    {dayEvents.length > 0 ? (
-                      <View style={styles.dayDotsRow}>
-                        {dayEvents.slice(0, 3).map((e) => (
-                          <View key={e.id} style={[styles.dayDot, e.scope === "global" ? styles.dayDotGlobal : styles.dayDotSalon]} />
-                        ))}
-                      </View>
+                    {visibleEvents.map((e) => (
+                      <Text
+                        key={e.id}
+                        numberOfLines={1}
+                        style={[
+                          styles.dayEventTitle,
+                          e.scope === "global" ? styles.dayEventTitleGlobal : styles.dayEventTitleSalon,
+                          isSelected && styles.dayEventTitleSelected,
+                        ]}
+                      >
+                        {e.title}
+                      </Text>
+                    ))}
+                    {extraCount > 0 ? (
+                      <Text style={[styles.dayEventMore, isSelected && styles.dayEventTitleSelected]}>+{extraCount} más</Text>
                     ) : null}
                   </Pressable>
                 );
@@ -500,15 +511,16 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: "row" },
   weekday: { flex: 1, textAlign: "center", fontSize: 11, color: colors.slate, fontWeight: "600" },
   grid: { flexDirection: "row", flexWrap: "wrap", marginBottom: spacing.md },
-  dayCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
+  dayCell: { width: `${100 / 7}%`, minHeight: 62, paddingVertical: 4, paddingHorizontal: 2, alignItems: "stretch", borderRadius: radius.sm },
   dayCellToday: { backgroundColor: colors.tealTint },
   dayCellSelected: { backgroundColor: colors.teal },
-  dayText: { fontSize: 13, color: colors.ink },
+  dayText: { fontSize: 13, color: colors.ink, textAlign: "center" },
   dayTextSelected: { color: "#fff", fontWeight: "700" },
-  dayDotsRow: { flexDirection: "row", gap: 2, marginTop: 2 },
-  dayDot: { width: 4, height: 4, borderRadius: 2 },
-  dayDotGlobal: { backgroundColor: colors.amber },
-  dayDotSalon: { backgroundColor: colors.teal },
+  dayEventTitle: { fontSize: 9, fontWeight: "600", marginTop: 2, paddingHorizontal: 2, borderRadius: 3 },
+  dayEventTitleGlobal: { color: colors.amber },
+  dayEventTitleSalon: { color: colors.tealDark },
+  dayEventTitleSelected: { color: "#fff" },
+  dayEventMore: { fontSize: 9, color: colors.slate, marginTop: 1, textAlign: "center" },
   selectedHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
   selectedTitle: { fontSize: 14, fontWeight: "700", color: colors.tealDark, textTransform: "capitalize" },
   addButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 14 },
