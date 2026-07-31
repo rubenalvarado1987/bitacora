@@ -465,17 +465,37 @@ export default function CalendarioScreen() {
                         {day}
                       </Text>
                       {visibleEvents.map((e) => (
-                        <Text
-                          key={e.id}
-                          numberOfLines={1}
-                          style={[
-                            styles.dayEventTitle,
-                            e.scope === "global" ? styles.dayEventTitleGlobal : styles.dayEventTitleSalon,
-                            isSelected && styles.dayEventTitleSelected,
-                          ]}
-                        >
-                          {e.title}
-                        </Text>
+                        <View key={e.id} style={styles.dayEventRow}>
+                          {e.startTime ? (
+                            <View
+                              style={[
+                                styles.dayEventTimeChip,
+                                e.scope === "global" ? styles.dayEventTimeChipGlobal : styles.dayEventTimeChipSalon,
+                                isSelected && styles.dayEventTimeChipSelected,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dayEventTimeChipText,
+                                  e.scope === "global" ? styles.dayEventTimeChipTextGlobal : styles.dayEventTimeChipTextSalon,
+                                  isSelected && styles.dayEventTimeChipTextSelected,
+                                ]}
+                              >
+                                {e.startTime}{e.endTime ? `–${e.endTime}` : ""}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.dayEventTitle,
+                              e.scope === "global" ? styles.dayEventTitleGlobal : styles.dayEventTitleSalon,
+                              isSelected && styles.dayEventTitleSelected,
+                            ]}
+                          >
+                            {e.title}
+                          </Text>
+                        </View>
                       ))}
                       {extraCount > 0 ? (
                         <Text style={[styles.dayEventMore, isSelected && styles.dayEventTitleSelected]}>+{extraCount} más</Text>
@@ -590,7 +610,16 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 13, color: colors.ink, textAlign: "center" },
   dayTextSunday: { color: colors.danger },
   dayTextSelected: { color: "#fff", fontWeight: "700" },
-  dayEventTitle: { fontSize: 9, fontWeight: "600", marginTop: 2, paddingHorizontal: 2, borderRadius: 3 },
+  dayEventTitle: { fontSize: 9, fontWeight: "600", flexShrink: 1 },
+  dayEventRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
+  dayEventTimeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: radius.pill },
+  dayEventTimeChipGlobal: { backgroundColor: colors.amberTint },
+  dayEventTimeChipSalon: { backgroundColor: colors.tealTint },
+  dayEventTimeChipSelected: { backgroundColor: "rgba(255,255,255,0.25)" },
+  dayEventTimeChipText: { fontSize: 8, fontWeight: "700" },
+  dayEventTimeChipTextGlobal: { color: colors.amber },
+  dayEventTimeChipTextSalon: { color: colors.tealDark },
+  dayEventTimeChipTextSelected: { color: "#fff" },
   dayEventTitleGlobal: { color: colors.amber },
   dayEventTitleSalon: { color: colors.tealDark },
   dayEventTitleSelected: { color: "#fff" },
