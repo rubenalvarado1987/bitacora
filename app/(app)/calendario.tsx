@@ -151,6 +151,10 @@ export default function CalendarioScreen() {
 
   const allDayEvents = selectedDayEvents.filter((e) => !e.startTime);
   const timedEvents = selectedDayEvents.filter((e) => e.startTime);
+  const selectedIsToday = selectedDate === todayISODate();
+  const selectedColumn = ((parseISODate(selectedDate)?.getDay() ?? 1) + 6) % 7; // lunes = 0 ... domingo = 6
+  const selectedIsSunday = selectedColumn === 6;
+  const selectedIsSaturday = selectedColumn === 5;
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -258,11 +262,21 @@ export default function CalendarioScreen() {
           <Text style={styles.scopeBadgeText}>{e.scope === "global" ? "Global" : salonName(e.salonId)}</Text>
         </View>
       </View>
-      {e.startTime ? (
-        <Text style={styles.eventMeta}>{e.startTime}{e.endTime ? ` – ${e.endTime}` : ""}</Text>
-      ) : (
-        <Text style={styles.eventMeta}>Todo el día</Text>
-      )}
+      <View
+        style={[
+          styles.eventTimeChip,
+          e.scope === "global" ? styles.eventTimeChipGlobal : styles.eventTimeChipSalon,
+        ]}
+      >
+        <Text
+          style={[
+            styles.eventTimeChipText,
+            e.scope === "global" ? styles.eventTimeChipTextGlobal : styles.eventTimeChipTextSalon,
+          ]}
+        >
+          {e.startTime ? `${e.startTime}${e.endTime ? ` – ${e.endTime}` : ""}` : "Todo el día"}
+        </Text>
+      </View>
       {e.recurrence === "range" ? (
         <Text style={styles.eventMeta}>{formatCLDate(e.date)} – {formatCLDate(e.endDate || e.date)}</Text>
       ) : null}
@@ -515,33 +529,55 @@ export default function CalendarioScreen() {
         ) : (
           <>
             {/* Navegación de día */}
-            <View style={styles.monthNav}>
+            <View
+              style={[
+                styles.dayNav,
+                selectedIsSaturday && styles.dayNavSaturday,
+                selectedIsSunday && styles.dayNavSunday,
+              ]}
+            >
               <Pressable onPress={() => changeSelectedDay(-1)} style={styles.navButton} hitSlop={8}>
                 <Text style={styles.navButtonText}>‹</Text>
               </Pressable>
-              <Text style={styles.monthTitle}>{formatCLDate(selectedDate)}</Text>
+              <Text
+                style={[
+                  styles.monthTitle,
+                  selectedIsSunday && styles.dayTextSunday,
+                  selectedIsSaturday && styles.weekdaySaturday,
+                ]}
+              >
+                {formatCLDate(selectedDate)}
+              </Text>
               <Pressable onPress={() => changeSelectedDay(1)} style={styles.navButton} hitSlop={8}>
                 <Text style={styles.navButtonText}>›</Text>
               </Pressable>
             </View>
 
-            {allDayEvents.length > 0 ? (
-              <View style={styles.allDaySection}>
-                <Text style={styles.allDayLabel}>Todo el día</Text>
-                {allDayEvents.map(renderEventCard)}
-              </View>
-            ) : null}
+            {/* Línea de tiempo estilo agenda de papel */}
+            <View style={styles.calendarPaper}>
+              {allDayEvents.length > 0 ? (
+                <View style={styles.allDaySection}>
+                  <Text style={styles.allDayLabel}>Todo el día</Text>
+                  {allDayEvents.map(renderEventCard)}
+                </View>
+              ) : null}
 
-            <View style={styles.hourList}>
-              {HOURS.map((h) => {
-                const hourEvents = timedEvents.filter((e) => Number((e.startTime ?? "0:0").split(":")[0]) === h);
-                return (
-                  <View key={h} style={styles.hourRow}>
-                    <Text style={styles.hourLabel}>{h.toString().padStart(2, "0")}:00</Text>
-                    <View style={styles.hourContent}>{hourEvents.map(renderEventCard)}</View>
-                  </View>
-                );
-              })}
+              <View style={styles.hourList}>
+                {HOURS.map((h) => {
+                  const hourEvents = timedEvents.filter((e) => Number((e.startTime ?? "0:0").split(":")[0]) === h);
+                  const isCurrentHour = selectedIsToday && h === new Date().getHours();
+                  return (
+                    <View key={h} style={[styles.hourRow, isCurrentHour && styles.hourRowNow]}>
+                      <View style={styles.hourLabelCell}>
+                        <Text style={[styles.hourLabel, isCurrentHour && styles.hourLabelNow]}>
+                          {h.toString().padStart(2, "0")}:00
+                        </Text>
+                      </View>
+                      <View style={styles.hourContent}>{hourEvents.map(renderEventCard)}</View>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           </>
         )}
@@ -567,6 +603,17 @@ const styles = StyleSheet.create({
   navButton: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   navButtonText: { fontSize: 18, color: colors.teal, fontWeight: "700" },
   monthTitle: { fontSize: 15, fontWeight: "700", color: colors.ink, textTransform: "capitalize", minWidth: 140, textAlign: "center" },
+  dayNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.xs,
+  },
+  dayNavSaturday: { backgroundColor: colors.tealTint },
+  dayNavSunday: { backgroundColor: colors.dangerTint },
   weekRow: { flexDirection: "row" },
   weekday: { fontSize: 11, color: colors.slate, fontWeight: "700" },
   weekdaySaturday: { color: colors.tealDark },
@@ -641,17 +688,26 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, color: colors.slate, fontWeight: "600", marginBottom: 4 },
   saveButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" },
   saveButtonText: { color: "#fff", fontWeight: "700" },
-  allDaySection: { marginBottom: spacing.md },
+  allDaySection: { padding: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line, backgroundColor: colors.paper },
   allDayLabel: { fontSize: 12, fontWeight: "700", color: colors.tealDark, marginBottom: spacing.xs },
-  hourList: { borderTopWidth: 1, borderTopColor: colors.line },
+  hourList: { padding: spacing.sm },
   hourRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: spacing.xs, minHeight: 44 },
-  hourLabel: { width: 56, fontSize: 11, color: colors.slate, fontWeight: "600", paddingTop: 4 },
-  hourContent: { flex: 1 },
+  hourRowNow: { backgroundColor: colors.tealTint },
+  hourLabelCell: { width: 56, borderRightWidth: 1, borderRightColor: colors.line, paddingTop: 4 },
+  hourLabel: { fontSize: 11, color: colors.slate, fontWeight: "600" },
+  hourLabelNow: { color: colors.tealDark, fontWeight: "700" },
+  hourContent: { flex: 1, paddingLeft: spacing.sm },
   eventCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   eventHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
   eventTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.ink },
   scopeBadge: { backgroundColor: colors.tealTint, borderRadius: radius.pill, paddingVertical: 3, paddingHorizontal: 8 },
   scopeBadgeText: { fontSize: 11, color: colors.tealDark, fontWeight: "600" },
+  eventTimeChip: { alignSelf: "flex-start", borderRadius: radius.pill, paddingVertical: 2, paddingHorizontal: 8, marginTop: 6 },
+  eventTimeChipGlobal: { backgroundColor: colors.amberTint },
+  eventTimeChipSalon: { backgroundColor: colors.tealTint },
+  eventTimeChipText: { fontSize: 11, fontWeight: "700" },
+  eventTimeChipTextGlobal: { color: colors.amber },
+  eventTimeChipTextSalon: { color: colors.tealDark },
   eventMeta: { fontSize: 12, color: colors.slate, marginTop: 4 },
   actionsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
   actionLink: { color: colors.teal, fontWeight: "700", fontSize: 13 },
