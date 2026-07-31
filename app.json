@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Bitácora",
+    "slug": "bitacora-app",
+    "scheme": "bitacora",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#FAF8F5"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.tuempresa.bitacora",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.tuempresa.bitacora",
+      "adaptiveIcon": {
+        "backgroundColor": "#FAF8F5"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

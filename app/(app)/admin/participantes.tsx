@@ -1,0 +1,306 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
+import { useAuth } from "../../../src/context/AuthContext";
+import { colors, radius, spacing } from "../../../src/theme";
+import { showAlert } from "../../../src/utils/alert";
+import { Person } from "../../../src/types";
+import {
+  ParticipantDraft,
+  listenParticipants,
+  removeParticipant,
+  saveParticipant,
+} from "../../../src/data/adminRepository";
+import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
+import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
+
+const emptyDraft: ParticipantDraft = {
+  name: "",
+  templateId: "",
+  status: "activo",
+  baseData: {},
+  planId: "",
+  salonIds: [],
+  linkedUid: "",
+};
+
+export default function ParticipantsScreen() {
+  const { membership } = useAuth();
+  const [items, setItems] = useState<Person[]>([]);
+  const [draft, setDraft] = useState<ParticipantDraft>(emptyDraft);
+  const [baseDataText, setBaseDataText] = useState("{}");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [updatingAccount, setUpdatingAccount] = useState(false);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenParticipants(membership.organizationId, setItems);
+  }, [membership?.organizationId]);
+
+  const title = useMemo(() => (editingId ? "Editar participante" : "Nuevo participante"), [editingId]);
+  const needsAccount = !draft.linkedUid;
+
+  const reset = () => {
+    setDraft(emptyDraft);
+    setBaseDataText("{}");
+    setEmail("");
+    setPassword("");
+    setNewEmail("");
+    setNewPassword("");
+    setEditingId(null);
+  };
+
+  const handleUpdateAccount = async () => {
+    if (!membership?.organizationId || !draft.linkedUid) return;
+    if (!newEmail.trim() && !newPassword) {
+      showAlert("Sin cambios", "Ingresa un nuevo correo y/o contraseña.");
+      return;
+    }
+    if (newPassword && newPassword.length < 6) {
+      showAlert("Contraseña muy corta", "Debe tener al menos 6 caracteres.");
+      return;
+    }
+    setUpdatingAccount(true);
+    try {
+      await updateLinkedAccountCredentials({
+        organizationId: membership.organizationId,
+        targetUid: draft.linkedUid,
+        email: newEmail.trim() || undefined,
+        password: newPassword || undefined,
+      });
+      setNewEmail("");
+      setNewPassword("");
+      showAlert("Listo", "El acceso fue actualizado.");
+    } catch (e: any) {
+      showAlert("No se pudo actualizar", e?.message ?? "Intenta de nuevo.");
+    } finally {
+      setUpdatingAccount(false);
+    }
+  };
+
+  const parseBaseData = () => {
+    try {
+      return JSON.parse(baseDataText || "{}");
+    } catch {
+      return null;
+    }
+  };
+
+  const handleSave = async () => {
+    if (!membership?.organizationId) return;
+    if (!draft.name.trim() || !draft.templateId.trim()) {
+      showAlert("Faltan datos", "Completa nombre y templateId.");
+      return;
+    }
+
+    const baseData = parseBaseData();
+    if (!baseData) {
+      showAlert("Base inválida", "La ficha técnica debe ser un JSON válido.");
+      return;
+    }
+
+    let linkedUid = draft.linkedUid;
+
+    if (needsAccount && (email.trim() || password)) {
+      if (!email.trim() || password.length < 6) {
+        showAlert(
+          "Acceso al sistema",
+          "Ingresa un correo válido y una contraseña de al menos 6 caracteres para crear su acceso."
+        );
+        return;
+      }
+
+      setSaving(true);
+      try {
+        linkedUid = await provisionLinkedAccount({
+          email: email.trim(),
+          password,
+          displayName: draft.name.trim(),
+          organizationId: membership.organizationId,
+          role: "lector",
+        });
+      } catch (e: any) {
+        showAlert("No se pudo crear el acceso", mensajeDeErrorAuth(e?.code));
+        setSaving(false);
+        return;
+      }
+    }
+
+    try {
+      await saveParticipant(
+        membership.organizationId,
+        {
+          ...draft,
+          baseData,
+          linkedUid,
+        },
+        editingId ?? undefined
+      );
+      reset();
+    } catch (e: any) {
+      showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (item: Person) => {
+    setEditingId(item.id);
+    setDraft({
+      name: item.name,
+      templateId: item.templateId,
+      status: item.status,
+      baseData: item.baseData,
+      planId: item.planId ?? "",
+      salonIds: item.salonIds ?? [],
+      linkedUid: item.linkedUid ?? "",
+    });
+    setBaseDataText(JSON.stringify(item.baseData, null, 2));
+    setEmail("");
+    setPassword("");
+    setNewEmail("");
+    setNewPassword("");
+  };
+
+  const handleDelete = async (participantId: string) => {
+    if (!membership?.organizationId) return;
+    await removeParticipant(membership.organizationId, participantId);
+    if (editingId === participantId) reset();
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ title: "Participantes" }} />
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel}>{title}</Text>
+        <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre del participante" style={styles.input} />
+        <TextInput value={draft.templateId} onChangeText={(value) => setDraft({ ...draft, templateId: value })} placeholder="Template ID" style={styles.input} />
+        <TextInput value={draft.planId ?? ""} onChangeText={(value) => setDraft({ ...draft, planId: value })} placeholder="Plan ID" style={styles.input} />
+        <TextInput value={String(draft.salonIds?.join(",") ?? "")} onChangeText={(value) => setDraft({ ...draft, salonIds: value ? value.split(",").map((item) => item.trim()).filter(Boolean) : [] })} placeholder="Salon IDs separados por coma" style={styles.input} />
+        <TextInput value={baseDataText} onChangeText={setBaseDataText} placeholder="Ficha técnica JSON" multiline style={[styles.input, styles.multiline]} />
+        <View style={styles.roleRow}>
+          {(["activo", "inactivo"] as const).map((status) => (
+            <Pressable key={status} onPress={() => setDraft({ ...draft, status })} style={[styles.roleChip, draft.status === status && styles.roleChipActive]}>
+              <Text style={[styles.roleText, draft.status === status && styles.roleTextActive]}>{status}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {needsAccount ? (
+          <View style={styles.accountBox}>
+            <Text style={styles.accountLabel}>Acceso al sistema (opcional)</Text>
+            <Text style={styles.accountNote}>
+              Si completas correo y contraseña, esta persona (o su apoderado) podrá iniciar sesión en modo solo lectura para ver sus avances.
+            </Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="correo@ejemplo.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+            />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Contraseña (mínimo 6 caracteres)"
+              secureTextEntry
+              style={styles.input}
+            />
+          </View>
+        ) : (
+          <View style={styles.accountBox}>
+            <Text style={styles.accountLinked}>Acceso al sistema vinculado · UID: {draft.linkedUid}</Text>
+            <Text style={styles.accountLabel}>Cambiar correo / contraseña</Text>
+            <TextInput
+              value={newEmail}
+              onChangeText={setNewEmail}
+              placeholder="Nuevo correo (opcional)"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+            />
+            <TextInput
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Nueva contraseña (opcional)"
+              secureTextEntry
+              style={styles.input}
+            />
+            <Pressable
+              onPress={handleUpdateAccount}
+              disabled={updatingAccount}
+              style={[styles.secondaryButton, updatingAccount && styles.primaryButtonDisabled]}
+            >
+              {updatingAccount ? <ActivityIndicator color={colors.teal} /> : <Text style={styles.secondaryButtonText}>Actualizar acceso</Text>}
+            </Pressable>
+          </View>
+        )}
+        <Pressable onPress={handleSave} disabled={saving} style={[styles.primaryButton, saving && styles.primaryButtonDisabled]}>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Guardar participante</Text>}
+        </Pressable>
+        <Pressable onPress={reset} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Limpiar</Text></Pressable>
+      </View>
+
+      {items.map((item) => (
+        <View key={item.id} style={styles.listCard}>
+          <Text style={styles.listTitle}>{item.name}</Text>
+          <Text style={styles.listBody}>Template: {item.templateId} · {item.status} {item.planId ? `· plan ${item.planId}` : ""}</Text>
+          <Text style={styles.listBody}>Salones: {item.salonIds?.length ? item.salonIds.join(", ") : "ninguno"}</Text>
+          <Text style={styles.listBody}>{item.linkedUid ? "Acceso al sistema creado" : "Sin acceso creado"}</Text>
+          <View style={styles.actionsRow}>
+            <Pressable onPress={() => startEdit(item)}><Text style={styles.actionLink}>Editar</Text></Pressable>
+            <Pressable onPress={() => handleDelete(item.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+function mensajeDeErrorAuth(code?: string) {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "Ya existe una cuenta con este correo.";
+    case "auth/invalid-email":
+      return "El correo no tiene un formato válido.";
+    case "auth/weak-password":
+      return "La contraseña es demasiado débil.";
+    default:
+      return "No se pudo crear la cuenta. Intenta de nuevo.";
+  }
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.paper },
+  content: { padding: spacing.lg, paddingBottom: spacing.xl },
+  card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
+  multiline: { minHeight: 120, textAlignVertical: "top" },
+  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
+  roleChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
+  roleChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
+  roleText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
+  roleTextActive: { color: colors.tealDark },
+  primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },
+  primaryButtonText: { color: "#fff", fontWeight: "700" },
+  secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.sm },
+  secondaryButtonText: { color: colors.ink, fontWeight: "600" },
+  accountBox: { backgroundColor: colors.tealTint, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.sm },
+  accountLabel: { fontSize: 12, fontWeight: "700", color: colors.tealDark, marginBottom: 4 },
+  accountNote: { fontSize: 11, color: colors.slate, marginBottom: spacing.sm, lineHeight: 16 },
+  accountLinked: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
+  primaryButtonDisabled: { opacity: 0.6 },
+  listCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  listTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
+  listBody: { fontSize: 12, color: colors.slate, marginTop: spacing.xs, lineHeight: 18 },
+  actionsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  actionLink: { color: colors.teal, fontWeight: "700" },
+  actionDanger: { color: colors.danger, fontWeight: "700" },
+});

@@ -1,0 +1,83 @@
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { Stack, useLocalSearchParams } from "expo-router";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../../../src/firebase";
+import { useAuth } from "../../../../src/context/AuthContext";
+import { listenEntries } from "../../../../src/data/entriesRepository";
+import { EntryCard } from "../../../../src/components/EntryCard";
+import { colors, spacing } from "../../../../src/theme";
+import { Entry, Person } from "../../../../src/types";
+
+export default function ApoderadoParticipantScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { membership } = useAuth();
+  const [person, setPerson] = useState<Person | null>(null);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!membership?.organizationId || !id) return;
+    (async () => {
+      const snap = await getDoc(
+        doc(db, "organizations", membership.organizationId, "people", id)
+      );
+      if (snap.exists()) setPerson({ id: snap.id, ...snap.data() } as Person);
+      setLoading(false);
+    })();
+  }, [membership?.organizationId, id]);
+
+  useEffect(() => {
+    if (!membership?.organizationId || !id) return;
+    return listenEntries(membership.organizationId, id, setEntries);
+  }, [membership?.organizationId, id]);
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.teal} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: person?.name ?? "Participante" }} />
+      <FlatList
+        data={entries}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          person ? (
+            <View style={styles.header}>
+              <Text style={styles.name}>{person.name}</Text>
+              <Text style={styles.meta}>{person.status}</Text>
+              <Text style={styles.timelineLabel}>Registros</Text>
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          <Text style={styles.empty}>No hay registros disponibles aún.</Text>
+        }
+        renderItem={({ item }) => <EntryCard entry={item} />}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.paper },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  list: { padding: spacing.lg },
+  header: { marginBottom: spacing.lg },
+  name: { fontSize: 20, fontWeight: "700", color: colors.ink },
+  meta: { fontSize: 12, color: colors.slate, marginTop: 4 },
+  timelineLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    color: colors.slate,
+    marginTop: spacing.md,
+  },
+  empty: { color: colors.slate, fontSize: 13, textAlign: "center" },
+});

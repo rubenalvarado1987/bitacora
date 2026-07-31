@@ -1,0 +1,117 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Permite leer el doc de membresía propio en cualquier org (necesario para collectionGroup)
+    match /{path=**}/members/{memberId} {
+      allow read: if request.auth != null
+        && (memberId == request.auth.uid || resource.data.uid == request.auth.uid);
+    }
+
+    function esMiembro(orgId) {
+      return exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function miRol(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
+    }
+
+    // Mapa uid -> organizationId. El propio usuario gestiona su doc; un admin puede crear el mapa
+    // para una cuenta que acaba de aprovisionar (profesional o apoderado de un participante).
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && (
+        request.auth.uid == uid
+        || (request.resource.data.organizationId is string
+          && esMiembro(request.resource.data.organizationId)
+          && miRol(request.resource.data.organizationId) == 'admin')
+      );
+    }
+
+    // Plantillas: lectura para cualquier usuario autenticado que sea miembro
+    // de alguna organización; escritura solo para administradores.
+    match /templates/{templateId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // TODO: restringir a admins verificando su organización
+    }
+
+    match /organizations/{orgId} {
+      allow read: if request.auth != null && esMiembro(orgId);
+      allow create: if request.auth != null && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+
+      match /members/{memberId} {
+        // esMiembro cubre miembros ya activos; memberId cubre la lectura propia al registrarse
+        allow read: if request.auth != null && (esMiembro(orgId) || memberId == request.auth.uid);
+        allow create: if request.auth != null && (
+          // Alta propia del primer admin durante el wizard
+          (memberId == request.auth.uid
+            && request.resource.data.uid == request.auth.uid
+            && get(/databases/$(database)/documents/organizations/$(orgId)).data.createdBy == request.auth.uid)
+          // Alta de una cuenta aprovisionada por un admin existente (profesional o apoderado)
+          || (esMiembro(orgId) && miRol(orgId) == 'admin')
+        );
+        allow update, delete: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+      }
+
+      match /people/{personId} {
+        allow read: if request.auth != null && esMiembro(orgId);
+        allow write: if request.auth != null && esMiembro(orgId) && miRol(orgId) in ['admin', 'editor', 'profesional'];
+
+        match /entries/{entryId} {
+          allow read: if request.auth != null && esMiembro(orgId);
+          allow create: if request.auth != null && esMiembro(orgId) && miRol(orgId) in ['admin', 'editor', 'profesional'];
+          // Los registros no se editan ni se borran una vez creados (trazabilidad tipo bitácora).
+          allow update, delete: if false;
+        }
+      }
+
+      match /profiles/{profileId} {
+        allow read, write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+      }
+
+      match /plans/{planId} {
+        allow read, write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+      }
+
+      match /salons/{salonId} {
+        allow read, write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+      }
+
+      match /calendar/{eventId} {
+        allow read: if request.auth != null && esMiembro(orgId);
+        allow create, update: if request.auth != null && esMiembro(orgId)
+          && miRol(orgId) in ['admin', 'editor', 'profesional'];
+        allow delete: if request.auth != null && esMiembro(orgId)
+          && (miRol(orgId) == 'admin'
+            || (miRol(orgId) in ['editor', 'profesional']
+              && resource.data.createdBy == request.auth.uid));
+      }
+
+      match /chatThreads/{threadId} {
+        allow read: if request.auth != null && esMiembro(orgId)
+          && (miRol(orgId) == 'admin'
+            || request.auth.uid in resource.data.memberIds);
+        allow create: if request.auth != null && esMiembro(orgId)
+          && miRol(orgId) in ['admin', 'editor', 'profesional'];
+        allow update, delete: if request.auth != null && esMiembro(orgId)
+          && miRol(orgId) == 'admin';
+
+        match /messages/{messageId} {
+          allow read: if request.auth != null && esMiembro(orgId)
+            && (miRol(orgId) == 'admin'
+              || request.auth.uid in get(/databases/$(database)/documents/organizations/$(orgId)/chatThreads/$(threadId)).data.memberIds);
+          allow create: if request.auth != null && esMiembro(orgId)
+            && request.resource.data.authorUid == request.auth.uid;
+          allow update, delete: if false;
+        }
+      }
+
+      match /alerts/{alertId} {
+        allow read: if request.auth != null && esMiembro(orgId);
+        allow write: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';
+      }
+    }
+  }
+}
