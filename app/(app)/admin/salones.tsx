@@ -124,8 +124,6 @@ export default function SalonsScreen() {
           ))}
         </View>
 
-        <TextInput value={draft.professionalIds.join(", ")} onChangeText={(value) => setDraft({ ...draft, professionalIds: value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="IDs de profesionales" style={styles.input} />
-        <TextInput value={draft.participantIds.join(", ")} onChangeText={(value) => setDraft({ ...draft, participantIds: value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="IDs de participantes" style={styles.input} />
         <Pressable onPress={() => setDraft({ ...draft, active: !draft.active })} style={styles.toggleButton}><Text style={styles.toggleButtonText}>{draft.active ? "Activo" : "Inactivo"}</Text></Pressable>
         <Pressable onPress={handleSave} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Guardar salón</Text></Pressable>
         <Pressable onPress={reset} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Limpiar</Text></Pressable>
