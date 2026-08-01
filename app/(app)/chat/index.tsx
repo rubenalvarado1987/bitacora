@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -10,12 +10,19 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { createThread, listenThreads, ThreadDraft } from "../../../src/data/chatRepository";
+import { listenParticipants, listenProfiles } from "../../../src/data/adminRepository";
 import { colors, radius, spacing } from "../../../src/theme";
-import { ChatThread } from "../../../src/types";
+import { ChatThread, Person, ProfileRecord } from "../../../src/types";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 
 const SCOPES = ["global", "salon", "participant"] as const;
+
+interface MemberOption {
+  uid: string;
+  label: string;
+  kind: "profesional" | "participante";
+}
 
 export default function ChatIndexScreen() {
   const { membership, user } = useAuth();
@@ -30,7 +37,49 @@ export default function ChatIndexScreen() {
     scope: "global",
     memberIds: [],
   });
-  const [memberInput, setMemberInput] = useState("");
+  const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
+  const [participants, setParticipants] = useState<Person[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<MemberOption[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    const unsubProfiles = listenProfiles(membership.organizationId, setProfiles);
+    const unsubParticipants = listenParticipants(membership.organizationId, setParticipants);
+    return () => {
+      unsubProfiles();
+      unsubParticipants();
+    };
+  }, [membership?.organizationId]);
+
+  const memberOptions = useMemo<MemberOption[]>(() => {
+    const fromProfiles = profiles
+      .filter((p) => p.linkedUid)
+      .map((p) => ({ uid: p.linkedUid as string, label: p.displayName, kind: "profesional" as const }));
+    const fromParticipants = participants
+      .filter((p) => p.linkedUid)
+      .map((p) => ({ uid: p.linkedUid as string, label: p.name, kind: "participante" as const }));
+    return [...fromProfiles, ...fromParticipants];
+  }, [profiles, participants]);
+
+  const selectedUids = useMemo(() => new Set(selectedMembers.map((m) => m.uid)), [selectedMembers]);
+
+  const searchResults = useMemo(() => {
+    const term = memberSearch.trim().toLowerCase();
+    if (!term) return [];
+    return memberOptions
+      .filter((m) => !selectedUids.has(m.uid) && m.label.toLowerCase().includes(term))
+      .slice(0, 6);
+  }, [memberOptions, memberSearch, selectedUids]);
+
+  const addMember = (option: MemberOption) => {
+    setSelectedMembers((prev) => [...prev, option]);
+    setMemberSearch("");
+  };
+
+  const removeMember = (uid: string) => {
+    setSelectedMembers((prev) => prev.filter((m) => m.uid !== uid));
+  };
 
   useEffect(() => {
     if (!membership?.organizationId || !user) return;
@@ -44,9 +93,10 @@ export default function ChatIndexScreen() {
       return;
     }
     try {
-      await createThread(membership.organizationId, draft);
+      await createThread(membership.organizationId, { ...draft, memberIds: selectedMembers.map((m) => m.uid) });
       setDraft({ title: "", scope: "global", memberIds: [] });
-      setMemberInput("");
+      setSelectedMembers([]);
+      setMemberSearch("");
       setShowForm(false);
     } catch (e: any) {
       showAlert("No se pudo crear", e?.message ?? "Intenta de nuevo.");
@@ -78,20 +128,35 @@ export default function ChatIndexScreen() {
             ))}
           </View>
           <TextInput
-            value={memberInput}
-            onChangeText={setMemberInput}
-            placeholder="UID de miembros separados por coma"
+            value={memberSearch}
+            onChangeText={setMemberSearch}
+            placeholder="Buscar profesional o participante"
             style={styles.input}
-            onBlur={() =>
-              setDraft({
-                ...draft,
-                memberIds: memberInput
-                  .split(",")
-                  .map((x) => x.trim())
-                  .filter(Boolean),
-              })
-            }
           />
+          {searchResults.length > 0 ? (
+            <View style={styles.searchResults}>
+              {searchResults.map((opt) => (
+                <Pressable key={opt.uid} onPress={() => addMember(opt)} style={styles.searchResultRow}>
+                  <Text style={styles.searchResultText}>{opt.label}</Text>
+                  <Text style={styles.searchResultKind}>{opt.kind === "profesional" ? "Profesional" : "Participante"}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : memberSearch.trim().length > 0 ? (
+            <Text style={styles.searchEmpty}>Sin resultados.</Text>
+          ) : null}
+          {selectedMembers.length > 0 ? (
+            <View style={styles.memberChipsRow}>
+              {selectedMembers.map((m) => (
+                <View key={m.uid} style={styles.memberChip}>
+                  <Text style={styles.memberChipText} numberOfLines={1}>{m.label}</Text>
+                  <Pressable onPress={() => removeMember(m.uid)} hitSlop={8}>
+                    <Text style={styles.memberChipRemove}>×</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <View style={styles.formActions}>
             <Pressable onPress={handleCreate} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Crear hilo</Text>
@@ -148,6 +213,15 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
+  searchResults: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, marginTop: -spacing.xs, marginBottom: spacing.sm, overflow: "hidden", backgroundColor: colors.card },
+  searchResultRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line },
+  searchResultText: { fontSize: 13, color: colors.ink, fontWeight: "600", flexShrink: 1 },
+  searchResultKind: { fontSize: 11, color: colors.slate },
+  searchEmpty: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
+  memberChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+  memberChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.tealTint, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 10, maxWidth: 200 },
+  memberChipText: { fontSize: 12, color: colors.tealDark, fontWeight: "600", flexShrink: 1 },
+  memberChipRemove: { fontSize: 14, color: colors.tealDark, fontWeight: "700" },
   scopeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   chip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12 },
   chipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
