@@ -8,10 +8,11 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import { FieldInput } from "../../../src/components/SectionField";
-import { Organization, Person, Salon, Template } from "../../../src/types";
+import { EconomicPlan, Organization, Person, Salon, Template } from "../../../src/types";
 import {
   ParticipantDraft,
   listenParticipants,
+  listenPlans,
   listenSalons,
   removeParticipant,
   saveParticipant,
@@ -35,6 +36,8 @@ export default function ParticipantsScreen() {
   const [template, setTemplate] = useState<Template | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [salonSearch, setSalonSearch] = useState("");
+  const [plans, setPlans] = useState<EconomicPlan[]>([]);
+  const [planSearch, setPlanSearch] = useState("");
   const [draft, setDraft] = useState<ParticipantDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -52,6 +55,11 @@ export default function ParticipantsScreen() {
   useEffect(() => {
     if (!membership?.organizationId) return;
     return listenSalons(membership.organizationId, setSalons);
+  }, [membership?.organizationId]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenPlans(membership.organizationId, setPlans);
   }, [membership?.organizationId]);
 
   useEffect(() => {
@@ -100,6 +108,23 @@ export default function ParticipantsScreen() {
 
   const removeSalonFromDraft = (salonId: string) => {
     setDraft((prev) => ({ ...prev, salonIds: (prev.salonIds ?? []).filter((id) => id !== salonId) }));
+  };
+
+  const selectedPlan = useMemo(() => plans.find((p) => p.id === draft.planId), [plans, draft.planId]);
+
+  const planSearchResults = useMemo(() => {
+    const term = planSearch.trim().toLowerCase();
+    if (!term) return [];
+    return plans.filter((p) => p.id !== draft.planId && p.name.toLowerCase().includes(term)).slice(0, 6);
+  }, [plans, planSearch, draft.planId]);
+
+  const selectPlan = (plan: EconomicPlan) => {
+    setDraft((prev) => ({ ...prev, planId: plan.id }));
+    setPlanSearch("");
+  };
+
+  const removePlanFromDraft = () => {
+    setDraft((prev) => ({ ...prev, planId: "" }));
   };
 
   const handleUpdateAccount = async () => {
@@ -219,7 +244,40 @@ export default function ParticipantsScreen() {
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre completo" style={styles.input} />
-        <TextInput value={draft.planId ?? ""} onChangeText={(value) => setDraft({ ...draft, planId: value })} placeholder="Plan ID" style={styles.input} />
+
+        <Text style={styles.fieldLabel}>Plan</Text>
+        {!selectedPlan ? (
+          <>
+            <TextInput
+              value={planSearch}
+              onChangeText={setPlanSearch}
+              placeholder="Buscar plan"
+              style={styles.input}
+            />
+            {planSearch.trim() ? (
+              planSearchResults.length > 0 ? (
+                <View style={styles.searchResults}>
+                  {planSearchResults.map((plan) => (
+                    <Pressable key={plan.id} style={styles.searchResultRow} onPress={() => selectPlan(plan)}>
+                      <Text style={styles.searchResultText}>{plan.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.searchEmpty}>Sin resultados.</Text>
+              )
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.chipRow}>
+            <View style={styles.salonChip}>
+              <Text style={styles.salonChipText} numberOfLines={1}>{selectedPlan.name}</Text>
+              <Pressable onPress={removePlanFromDraft} hitSlop={6}>
+                <Text style={styles.salonChipRemove}>×</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>Salones</Text>
         <TextInput
@@ -342,7 +400,7 @@ export default function ParticipantsScreen() {
       {items.map((item) => (
         <View key={item.id} style={styles.listCard}>
           <Text style={styles.listTitle}>{item.name}</Text>
-          <Text style={styles.listBody}>Template: {item.templateId} · {item.status} {item.planId ? `· plan ${item.planId}` : ""}</Text>
+          <Text style={styles.listBody}>Template: {item.templateId} · {item.status} {item.planId ? `· plan ${plans.find((p) => p.id === item.planId)?.name ?? item.planId}` : ""}</Text>
           <Text style={styles.listBody}>
             Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
           </Text>
