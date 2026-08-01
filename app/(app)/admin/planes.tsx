@@ -5,8 +5,11 @@ import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { EconomicPlan } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
+import DateField from "../../../src/components/DateField";
 import { PlanDraft, listenPlans, removePlan, savePlan } from "../../../src/data/adminRepository";
 import { showAlert } from "../../../src/utils/alert";
+
+const PERIOD_OPTIONS = ["Mensual", "Trimestral", "Anual"] as const;
 
 const emptyDraft: PlanDraft = { name: "", cost: 0, period: "Mensual", validUntil: "", active: true };
 
@@ -65,8 +68,23 @@ export default function PlansScreen() {
         <Text style={styles.sectionLabel}>{editingId ? "Editar plan" : "Nuevo plan"}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre" style={styles.input} />
         <TextInput value={String(draft.cost)} onChangeText={(value) => setDraft({ ...draft, cost: Number(value) || 0 })} placeholder="Costo" keyboardType="numeric" style={styles.input} />
-        <TextInput value={draft.period} onChangeText={(value) => setDraft({ ...draft, period: value })} placeholder="Periodo" style={styles.input} />
-        <TextInput value={draft.validUntil ?? ""} onChangeText={(value) => setDraft({ ...draft, validUntil: value })} placeholder="Vigencia / fecha límite" style={styles.input} />
+
+        <Text style={styles.fieldLabel}>Periodo</Text>
+        <View style={styles.chipRow}>
+          {PERIOD_OPTIONS.map((period) => (
+            <Pressable
+              key={period}
+              onPress={() => setDraft({ ...draft, period })}
+              style={[styles.chip, draft.period === period && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, draft.period === period && styles.chipTextActive]}>{period}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={styles.fieldLabel}>Vigencia</Text>
+        <DateField value={draft.validUntil ?? ""} onChange={(iso) => setDraft({ ...draft, validUntil: iso })} placeholder="Seleccionar fecha límite" />
+
         <Pressable onPress={() => setDraft({ ...draft, active: !draft.active })} style={styles.toggleButton}>
           <Text style={styles.toggleButtonText}>{draft.active ? "Activo" : "Inactivo"}</Text>
         </Pressable>
@@ -93,7 +111,13 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
+  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
+  chipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
+  chipText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
+  chipTextActive: { color: colors.tealDark },
   toggleButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginBottom: spacing.sm },
   toggleButtonText: { color: colors.ink, fontWeight: "700" },
   primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },
