@@ -8,10 +8,11 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import { FieldInput } from "../../../src/components/SectionField";
-import { Organization, Person, Template } from "../../../src/types";
+import { Organization, Person, Salon, Template } from "../../../src/types";
 import {
   ParticipantDraft,
   listenParticipants,
+  listenSalons,
   removeParticipant,
   saveParticipant,
 } from "../../../src/data/adminRepository";
@@ -32,6 +33,8 @@ export default function ParticipantsScreen() {
   const { membership } = useAuth();
   const [items, setItems] = useState<Person[]>([]);
   const [template, setTemplate] = useState<Template | null>(null);
+  const [salons, setSalons] = useState<Salon[]>([]);
+  const [salonSearch, setSalonSearch] = useState("");
   const [draft, setDraft] = useState<ParticipantDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -44,6 +47,11 @@ export default function ParticipantsScreen() {
   useEffect(() => {
     if (!membership?.organizationId) return;
     return listenParticipants(membership.organizationId, setItems);
+  }, [membership?.organizationId]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenSalons(membership.organizationId, setSalons);
   }, [membership?.organizationId]);
 
   useEffect(() => {
@@ -73,6 +81,25 @@ export default function ParticipantsScreen() {
 
   const setBaseField = (fieldId: string, value: string | number) => {
     setDraft((prev) => ({ ...prev, baseData: { ...prev.baseData, [fieldId]: value } }));
+  };
+
+  const selectedSalonIds = useMemo(() => new Set(draft.salonIds ?? []), [draft.salonIds]);
+
+  const salonSearchResults = useMemo(() => {
+    const term = salonSearch.trim().toLowerCase();
+    if (!term) return [];
+    return salons
+      .filter((s) => !selectedSalonIds.has(s.id) && s.name.toLowerCase().includes(term))
+      .slice(0, 6);
+  }, [salons, salonSearch, selectedSalonIds]);
+
+  const addSalon = (salon: Salon) => {
+    setDraft((prev) => ({ ...prev, salonIds: [...(prev.salonIds ?? []), salon.id] }));
+    setSalonSearch("");
+  };
+
+  const removeSalonFromDraft = (salonId: string) => {
+    setDraft((prev) => ({ ...prev, salonIds: (prev.salonIds ?? []).filter((id) => id !== salonId) }));
   };
 
   const handleUpdateAccount = async () => {
@@ -193,7 +220,42 @@ export default function ParticipantsScreen() {
         <Text style={styles.sectionLabel}>{title}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre completo" style={styles.input} />
         <TextInput value={draft.planId ?? ""} onChangeText={(value) => setDraft({ ...draft, planId: value })} placeholder="Plan ID" style={styles.input} />
-        <TextInput value={String(draft.salonIds?.join(",") ?? "")} onChangeText={(value) => setDraft({ ...draft, salonIds: value ? value.split(",").map((item) => item.trim()).filter(Boolean) : [] })} placeholder="Salon IDs separados por coma" style={styles.input} />
+
+        <Text style={styles.fieldLabel}>Salones</Text>
+        <TextInput
+          value={salonSearch}
+          onChangeText={setSalonSearch}
+          placeholder="Buscar salón"
+          style={styles.input}
+        />
+        {salonSearch.trim() ? (
+          salonSearchResults.length > 0 ? (
+            <View style={styles.searchResults}>
+              {salonSearchResults.map((salon) => (
+                <Pressable key={salon.id} style={styles.searchResultRow} onPress={() => addSalon(salon)}>
+                  <Text style={styles.searchResultText}>{salon.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.searchEmpty}>Sin resultados.</Text>
+          )
+        ) : null}
+        {draft.salonIds && draft.salonIds.length > 0 ? (
+          <View style={styles.chipRow}>
+            {draft.salonIds.map((id) => {
+              const salon = salons.find((s) => s.id === id);
+              return (
+                <View key={id} style={styles.salonChip}>
+                  <Text style={styles.salonChipText} numberOfLines={1}>{salon?.name ?? id}</Text>
+                  <Pressable onPress={() => removeSalonFromDraft(id)} hitSlop={6}>
+                    <Text style={styles.salonChipRemove}>×</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
 
         {template ? (
           template.baseSections.map((section) => (
@@ -281,7 +343,9 @@ export default function ParticipantsScreen() {
         <View key={item.id} style={styles.listCard}>
           <Text style={styles.listTitle}>{item.name}</Text>
           <Text style={styles.listBody}>Template: {item.templateId} · {item.status} {item.planId ? `· plan ${item.planId}` : ""}</Text>
-          <Text style={styles.listBody}>Salones: {item.salonIds?.length ? item.salonIds.join(", ") : "ninguno"}</Text>
+          <Text style={styles.listBody}>
+            Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
+          </Text>
           <Text style={styles.listBody}>{item.linkedUid ? "Acceso al sistema creado" : "Sin acceso creado"}</Text>
           <View style={styles.actionsRow}>
             <Pressable onPress={() => startEdit(item)}><Text style={styles.actionLink}>Editar</Text></Pressable>
@@ -313,8 +377,34 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
   fichaSection: { marginBottom: spacing.md },
   fichaSectionTitle: { fontSize: 12, fontWeight: "700", color: colors.tealDark, textTransform: "uppercase", marginBottom: spacing.sm },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
   multiline: { minHeight: 120, textAlignVertical: "top" },
+  searchResults: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.card,
+    overflow: "hidden",
+  },
+  searchResultRow: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  searchResultText: { fontSize: 13, color: colors.ink },
+  searchEmpty: { fontSize: 12, color: colors.slate, marginTop: -spacing.xs, marginBottom: spacing.sm },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+  salonChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.tealTint,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    maxWidth: 200,
+  },
+  salonChipText: { fontSize: 12, color: colors.tealDark, fontWeight: "600" },
+  salonChipRemove: { fontSize: 14, color: colors.tealDark, fontWeight: "700" },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
   roleChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
   roleChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
