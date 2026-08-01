@@ -91,6 +91,7 @@ export interface ProfileRecord {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelationship?: EmergencyContactRelationship;
+  salonIds?: string[];
 }
 
 export interface Organization {

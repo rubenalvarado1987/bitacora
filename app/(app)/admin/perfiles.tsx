@@ -6,10 +6,11 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import DateField from "../../../src/components/DateField";
-import { ProfileRecord } from "../../../src/types";
+import { ProfileRecord, Salon } from "../../../src/types";
 import {
   ProfileDraft,
   listenProfiles,
+  listenSalons,
   removeProfile,
   saveProfile,
 } from "../../../src/data/adminRepository";
@@ -41,11 +42,14 @@ const emptyDraft: ProfileDraft = {
   emergencyContactName: "",
   emergencyContactPhone: "",
   emergencyContactRelationship: "",
+  salonIds: [],
 };
 
 export default function AdminProfilesScreen() {
   const { membership } = useAuth();
   const [items, setItems] = useState<ProfileRecord[]>([]);
+  const [salons, setSalons] = useState<Salon[]>([]);
+  const [salonSearch, setSalonSearch] = useState("");
   const [draft, setDraft] = useState<ProfileDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -60,8 +64,32 @@ export default function AdminProfilesScreen() {
     return listenProfiles(membership.organizationId, setItems);
   }, [membership?.organizationId]);
 
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenSalons(membership.organizationId, setSalons);
+  }, [membership?.organizationId]);
+
   const title = useMemo(() => (editingId ? "Editar perfil" : "Nuevo perfil"), [editingId]);
   const needsAccount = !draft.linkedUid;
+
+  const selectedSalonIds = useMemo(() => new Set(draft.salonIds ?? []), [draft.salonIds]);
+
+  const salonSearchResults = useMemo(() => {
+    const term = salonSearch.trim().toLowerCase();
+    if (!term) return [];
+    return salons
+      .filter((s) => !selectedSalonIds.has(s.id) && s.name.toLowerCase().includes(term))
+      .slice(0, 6);
+  }, [salons, salonSearch, selectedSalonIds]);
+
+  const addSalon = (salon: Salon) => {
+    setDraft((prev) => ({ ...prev, salonIds: [...(prev.salonIds ?? []), salon.id] }));
+    setSalonSearch("");
+  };
+
+  const removeSalonFromDraft = (salonId: string) => {
+    setDraft((prev) => ({ ...prev, salonIds: (prev.salonIds ?? []).filter((id) => id !== salonId) }));
+  };
 
   const reset = () => {
     setDraft(emptyDraft);
@@ -163,6 +191,7 @@ export default function AdminProfilesScreen() {
       emergencyContactName: profile.emergencyContactName ?? "",
       emergencyContactPhone: profile.emergencyContactPhone ?? "",
       emergencyContactRelationship: profile.emergencyContactRelationship ?? "",
+      salonIds: profile.salonIds ?? [],
     });
     setEmail("");
     setPassword("");
@@ -228,6 +257,42 @@ export default function AdminProfilesScreen() {
           ))}
         </View>
 
+        <Text style={styles.fieldLabel}>Salones</Text>
+        <TextInput
+          value={salonSearch}
+          onChangeText={setSalonSearch}
+          placeholder="Buscar salón"
+          style={styles.input}
+        />
+        {salonSearch.trim() ? (
+          salonSearchResults.length > 0 ? (
+            <View style={styles.searchResults}>
+              {salonSearchResults.map((salon) => (
+                <Pressable key={salon.id} style={styles.searchResultRow} onPress={() => addSalon(salon)}>
+                  <Text style={styles.searchResultText}>{salon.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.searchEmpty}>Sin resultados.</Text>
+          )
+        ) : null}
+        {draft.salonIds && draft.salonIds.length > 0 ? (
+          <View style={styles.chipRow}>
+            {draft.salonIds.map((id) => {
+              const salon = salons.find((s) => s.id === id);
+              return (
+                <View key={id} style={styles.salonChip}>
+                  <Text style={styles.salonChipText} numberOfLines={1}>{salon?.name ?? id}</Text>
+                  <Pressable onPress={() => removeSalonFromDraft(id)} hitSlop={6}>
+                    <Text style={styles.salonChipRemove}>×</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {needsAccount ? (
           <View style={styles.accountBox}>
             <Text style={styles.accountLabel}>Acceso del profesional</Text>
@@ -292,6 +357,9 @@ export default function AdminProfilesScreen() {
           <Text style={styles.listTitle}>{item.displayName}</Text>
           <Text style={styles.listBody}>@{item.username} · {item.role} · {item.active ? "Activo" : "Inactivo"}</Text>
           <Text style={styles.listBody}>{item.linkedUid ? "Cuenta vinculada" : "Sin acceso creado"}</Text>
+          <Text style={styles.listBody}>
+            Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
+          </Text>
           <View style={styles.actionsRow}>
             <Pressable onPress={() => startEdit(item)}><Text style={styles.actionLink}>Editar</Text></Pressable>
             <Pressable onPress={() => handleDelete(item.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
@@ -327,6 +395,14 @@ const styles = StyleSheet.create({
   roleChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
   roleText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
   roleTextActive: { color: colors.tealDark },
+  searchResults: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, marginBottom: spacing.sm, overflow: "hidden" },
+  searchResultRow: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line },
+  searchResultText: { fontSize: 13, color: colors.ink },
+  searchEmpty: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
+  salonChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.tealTint, borderWidth: 1, borderColor: colors.teal, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, maxWidth: 220 },
+  salonChipText: { fontSize: 12, color: colors.tealDark, fontWeight: "600" },
+  salonChipRemove: { fontSize: 14, color: colors.tealDark, fontWeight: "700" },
   primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },
   primaryButtonText: { color: "#fff", fontWeight: "700" },
   secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.sm },

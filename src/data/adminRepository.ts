@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   EconomicPlan,
@@ -26,6 +26,7 @@ export interface ProfileDraft {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelationship?: EmergencyContactRelationship | "";
+  salonIds?: string[];
 }
 
 export interface PlanDraft {
@@ -81,9 +82,30 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
     emergencyContactName: draft.emergencyContactName || null,
     emergencyContactPhone: draft.emergencyContactPhone || null,
     emergencyContactRelationship: draft.emergencyContactRelationship || null,
+    salonIds: draft.salonIds || [],
   });
 
+  await syncProfileSalons(organizationId, ref.id, draft.salonIds || []);
+
   return ref.id;
+}
+
+// Mantiene salon.professionalIds en sincronía con los salones seleccionados desde el perfil.
+async function syncProfileSalons(organizationId: string, profileId: string, salonIds: string[]) {
+  const snapshot = await getDocs(collection(db, "organizations", organizationId, "salons"));
+  const updates: Promise<void>[] = [];
+  snapshot.forEach((docSnap) => {
+    const salon = docSnap.data() as Salon;
+    const currentIds = salon.professionalIds || [];
+    const shouldHave = salonIds.includes(docSnap.id);
+    const has = currentIds.includes(profileId);
+    if (shouldHave && !has) {
+      updates.push(updateDoc(docSnap.ref, { professionalIds: [...currentIds, profileId] }));
+    } else if (!shouldHave && has) {
+      updates.push(updateDoc(docSnap.ref, { professionalIds: currentIds.filter((pid) => pid !== profileId) }));
+    }
+  });
+  await Promise.all(updates);
 }
 
 export async function removeProfile(organizationId: string, profileId: string) {
