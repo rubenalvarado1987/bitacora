@@ -131,6 +131,7 @@ export interface ChatThread {
   salonName?: string;
   participantId?: string;
   memberIds: string[];
+  readBy?: Record<string, any>;
 }
 
 export interface ChatMessage {

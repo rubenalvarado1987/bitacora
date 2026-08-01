@@ -7,6 +7,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { ChatMessage, ChatThread } from "../types";
@@ -42,6 +43,22 @@ export async function createThread(organizationId: string, draft: ThreadDraft) {
   const ref = doc(collection(db, "organizations", organizationId, "chatThreads"));
   await setDoc(ref, { organizationId, ...draft });
   return ref.id;
+}
+
+export function listenThread(
+  organizationId: string,
+  threadId: string,
+  onChange: (thread: ChatThread | null) => void
+) {
+  const ref = doc(db, "organizations", organizationId, "chatThreads", threadId);
+  return onSnapshot(ref, (snap) => {
+    onChange(snap.exists() ? ({ id: snap.id, ...snap.data() } as ChatThread) : null);
+  });
+}
+
+export async function markThreadRead(organizationId: string, threadId: string, uid: string) {
+  const ref = doc(db, "organizations", organizationId, "chatThreads", threadId);
+  await updateDoc(ref, { [`readBy.${uid}`]: serverTimestamp() });
 }
 
 export function listenMessages(

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -10,12 +10,16 @@ import {
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../../src/firebase";
 import { useAuth } from "../../../src/context/AuthContext";
-import { listenMessages, sendMessage } from "../../../src/data/chatRepository";
+import {
+  listenMessages,
+  listenThread,
+  markThreadRead,
+  sendMessage,
+} from "../../../src/data/chatRepository";
+import { listenParticipants, listenProfiles } from "../../../src/data/adminRepository";
 import { colors, radius, spacing } from "../../../src/theme";
-import { ChatMessage, ChatThread } from "../../../src/types";
+import { ChatMessage, ChatThread, Person, ProfileRecord } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 
 export default function ChatThreadScreen() {
@@ -25,23 +29,52 @@ export default function ChatThreadScreen() {
 
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
+  const [participants, setParticipants] = useState<Person[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!membership?.organizationId || !threadId) return;
-    (async () => {
-      const snap = await getDoc(
-        doc(db, "organizations", membership.organizationId, "chatThreads", threadId)
-      );
-      if (snap.exists()) setThread({ id: snap.id, ...snap.data() } as ChatThread);
-    })();
+    return listenThread(membership.organizationId, threadId, setThread);
+  }, [membership?.organizationId, threadId]);
 
+  useEffect(() => {
+    if (!membership?.organizationId || !threadId) return;
     return listenMessages(membership.organizationId, threadId, (msgs) => {
       setMessages(msgs);
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     });
   }, [membership?.organizationId, threadId]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    const unsubProfiles = listenProfiles(membership.organizationId, setProfiles);
+    const unsubParticipants = listenParticipants(membership.organizationId, setParticipants);
+    return () => {
+      unsubProfiles();
+      unsubParticipants();
+    };
+  }, [membership?.organizationId]);
+
+  // Marca el hilo como leído por mí cada vez que llegan mensajes nuevos
+  useEffect(() => {
+    if (!membership?.organizationId || !user || !threadId || messages.length === 0) return;
+    markThreadRead(membership.organizationId, threadId, user.uid).catch((e) =>
+      console.warn("Error al marcar como leído:", e)
+    );
+  }, [membership?.organizationId, threadId, user, messages.length]);
+
+  const memberLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    profiles.forEach((p) => {
+      if (p.linkedUid) map.set(p.linkedUid, p.displayName);
+    });
+    participants.forEach((person) => {
+      if (person.linkedUid) map.set(person.linkedUid, person.displayName ?? person.name);
+    });
+    return map;
+  }, [profiles, participants]);
 
   const handleSend = async () => {
     if (!membership?.organizationId || !user || !text.trim() || !threadId) return;
@@ -75,6 +108,16 @@ export default function ChatThreadScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat", href: "/chat" }, { label: thread?.title ?? "Chat" }]} />
 
+      {thread && thread.memberIds.length > 0 ? (
+        <View style={styles.membersRow}>
+          {thread.memberIds.map((uid) => (
+            <View key={uid} style={styles.memberChip}>
+              <Text style={styles.memberChipText}>{memberLabels.get(uid) ?? "Miembro"}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       <FlatList
         ref={flatRef}
         data={messages}
@@ -85,6 +128,7 @@ export default function ChatThreadScreen() {
         }
         renderItem={({ item }) => {
           const isMe = item.authorUid === myUid;
+          const readAt = isMe ? getReadReceipt(thread, item, myUid) : null;
           return (
             <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
               {!isMe ? (
@@ -94,6 +138,9 @@ export default function ChatThreadScreen() {
               <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>
                 {formatTime(item.createdAt)}
               </Text>
+              {readAt ? (
+                <Text style={styles.readReceipt}>↑ Leído {formatTime(readAt)}</Text>
+              ) : null}
             </View>
           );
         }}
@@ -123,8 +170,25 @@ export default function ChatThreadScreen() {
 
 function formatTime(ts: any) {
   if (!ts) return "";
-  const date = ts.toDate ? ts.toDate() : new Date();
+  const date = ts.toDate ? ts.toDate() : ts instanceof Date ? ts : new Date();
   return date.toLocaleTimeString("es-419", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Última hora en la que algún otro miembro del hilo leyó este mensaje (o null si nadie lo ha leído aún)
+function getReadReceipt(thread: ChatThread | null, message: ChatMessage, myUid?: string): Date | null {
+  if (!thread?.readBy || !myUid) return null;
+  const created = message.createdAt?.toDate ? message.createdAt.toDate() : null;
+  if (!created) return null;
+  let latest: Date | null = null;
+  for (const uid of thread.memberIds) {
+    if (uid === myUid) continue;
+    const readTs = thread.readBy[uid];
+    const readDate = readTs?.toDate ? readTs.toDate() : null;
+    if (readDate && readDate >= created && (!latest || readDate > latest)) {
+      latest = readDate;
+    }
+  }
+  return latest;
 }
 
 const styles = StyleSheet.create({
@@ -151,7 +215,28 @@ const styles = StyleSheet.create({
   bubbleTextMe: { color: "#fff" },
   bubbleTime: { fontSize: 10, color: colors.slate, marginTop: 4, textAlign: "right" },
   bubbleTimeMe: { color: "rgba(255,255,255,0.7)" },
+  readReceipt: {
+    fontSize: 10,
+    color: colors.green,
+    marginTop: 2,
+    textAlign: "right",
+    fontWeight: "700",
+  },
   empty: { color: colors.slate, fontSize: 13, textAlign: "center", marginTop: spacing.xl },
+  membersRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  memberChip: {
+    backgroundColor: colors.tealTint,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  memberChipText: { fontSize: 11, color: colors.tealDark, fontWeight: "600" },
   inputBar: {
     flexDirection: "row",
     padding: spacing.md,
