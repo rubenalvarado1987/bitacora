@@ -109,16 +109,17 @@ export default function AdminProfilesScreen() {
 
     let linkedUid = draft.linkedUid;
 
-    if (needsAccount) {
-      if (!email.trim() || password.length < 6) {
-        showAlert(
-          "Acceso del profesional",
-          "Ingresa un correo válido y una contraseña de al menos 6 caracteres para crear su acceso."
-        );
-        return;
-      }
+    if (needsAccount && (!email.trim() || password.length < 6)) {
+      showAlert(
+        "Acceso del profesional",
+        "Ingresa un correo válido y una contraseña de al menos 6 caracteres para crear su acceso."
+      );
+      return;
+    }
 
-      setSaving(true);
+    setSaving(true);
+
+    if (needsAccount) {
       try {
         linkedUid = await provisionLinkedAccount({
           email: email.trim(),
