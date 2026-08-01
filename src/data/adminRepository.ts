@@ -1,6 +1,6 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
-import { EconomicPlan, Person, ProfileRecord, Salon } from "../types";
+import { EconomicPlan, EmergencyContactRelationship, Person, ProfileRecord, Salon } from "../types";
 
 export interface ProfileDraft {
   displayName: string;
@@ -9,6 +9,15 @@ export interface ProfileDraft {
   active: boolean;
   linkedUid?: string | null;
   notes?: string;
+  birthDate?: string;
+  idNumber?: string;
+  addressStreet?: string;
+  comuna?: string;
+  phone?: string;
+  personalEmail?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: EmergencyContactRelationship | "";
 }
 
 export interface PlanDraft {
@@ -51,6 +60,16 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
   await setDoc(ref, {
     organizationId,
     ...draft,
+    notes: draft.notes || null,
+    birthDate: draft.birthDate || null,
+    idNumber: draft.idNumber || null,
+    addressStreet: draft.addressStreet || null,
+    comuna: draft.comuna || null,
+    phone: draft.phone || null,
+    personalEmail: draft.personalEmail || null,
+    emergencyContactName: draft.emergencyContactName || null,
+    emergencyContactPhone: draft.emergencyContactPhone || null,
+    emergencyContactRelationship: draft.emergencyContactRelationship || null,
   });
 
   return ref.id;

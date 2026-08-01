@@ -71,6 +71,8 @@ export interface Membership {
   name?: string;
 }
 
+export type EmergencyContactRelationship = "padre" | "madre" | "pareja" | "hijo_hija" | "hermanos" | "otros";
+
 export interface ProfileRecord {
   id: string;
   organizationId: string;
@@ -80,6 +82,15 @@ export interface ProfileRecord {
   active: boolean;
   linkedUid?: string | null;
   notes?: string;
+  birthDate?: string;
+  idNumber?: string;
+  addressStreet?: string;
+  comuna?: string;
+  phone?: string;
+  personalEmail?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: EmergencyContactRelationship;
 }
 
 export interface Organization {

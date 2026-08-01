@@ -5,6 +5,7 @@ import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
+import DateField from "../../../src/components/DateField";
 import { ProfileRecord } from "../../../src/types";
 import {
   ProfileDraft,
@@ -15,6 +16,15 @@ import {
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
 
+const RELATIONSHIP_OPTIONS = [
+  { value: "padre", label: "Padre" },
+  { value: "madre", label: "Madre" },
+  { value: "pareja", label: "Pareja" },
+  { value: "hijo_hija", label: "Hijo o hija" },
+  { value: "hermanos", label: "Hermanos" },
+  { value: "otros", label: "Otros" },
+] as const;
+
 const emptyDraft: ProfileDraft = {
   displayName: "",
   username: "",
@@ -22,6 +32,15 @@ const emptyDraft: ProfileDraft = {
   active: true,
   linkedUid: "",
   notes: "",
+  birthDate: "",
+  idNumber: "",
+  addressStreet: "",
+  comuna: "",
+  phone: "",
+  personalEmail: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  emergencyContactRelationship: "",
 };
 
 export default function AdminProfilesScreen() {
@@ -134,6 +153,15 @@ export default function AdminProfilesScreen() {
       active: profile.active,
       linkedUid: profile.linkedUid ?? "",
       notes: profile.notes ?? "",
+      birthDate: profile.birthDate ?? "",
+      idNumber: profile.idNumber ?? "",
+      addressStreet: profile.addressStreet ?? "",
+      comuna: profile.comuna ?? "",
+      phone: profile.phone ?? "",
+      personalEmail: profile.personalEmail ?? "",
+      emergencyContactName: profile.emergencyContactName ?? "",
+      emergencyContactPhone: profile.emergencyContactPhone ?? "",
+      emergencyContactRelationship: profile.emergencyContactRelationship ?? "",
     });
     setEmail("");
     setPassword("");
@@ -158,6 +186,30 @@ export default function AdminProfilesScreen() {
         <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre visible" style={styles.input} />
         <TextInput value={draft.username} onChangeText={(value) => setDraft({ ...draft, username: value })} placeholder="Usuario" style={styles.input} />
         <TextInput value={draft.notes ?? ""} onChangeText={(value) => setDraft({ ...draft, notes: value })} placeholder="Notas" style={styles.input} />
+
+        <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
+        <DateField value={draft.birthDate ?? ""} onChange={(iso) => setDraft({ ...draft, birthDate: iso })} placeholder="Seleccionar fecha de nacimiento" />
+
+        <TextInput value={draft.idNumber ?? ""} onChangeText={(value) => setDraft({ ...draft, idNumber: value })} placeholder="Cédula de identidad" style={styles.input} />
+        <TextInput value={draft.addressStreet ?? ""} onChangeText={(value) => setDraft({ ...draft, addressStreet: value })} placeholder="Dirección (calle)" style={styles.input} />
+        <TextInput value={draft.comuna ?? ""} onChangeText={(value) => setDraft({ ...draft, comuna: value })} placeholder="Comuna" style={styles.input} />
+        <TextInput value={draft.phone ?? ""} onChangeText={(value) => setDraft({ ...draft, phone: value })} placeholder="Teléfono" keyboardType="phone-pad" style={styles.input} />
+        <TextInput value={draft.personalEmail ?? ""} onChangeText={(value) => setDraft({ ...draft, personalEmail: value })} placeholder="Correo personal" autoCapitalize="none" keyboardType="email-address" style={styles.input} />
+
+        <Text style={styles.fieldLabel}>Contacto de emergencia</Text>
+        <TextInput value={draft.emergencyContactName ?? ""} onChangeText={(value) => setDraft({ ...draft, emergencyContactName: value })} placeholder="Nombre del contacto" style={styles.input} />
+        <TextInput value={draft.emergencyContactPhone ?? ""} onChangeText={(value) => setDraft({ ...draft, emergencyContactPhone: value })} placeholder="Teléfono del contacto" keyboardType="phone-pad" style={styles.input} />
+        <View style={styles.roleRow}>
+          {RELATIONSHIP_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              onPress={() => setDraft({ ...draft, emergencyContactRelationship: option.value })}
+              style={[styles.roleChip, draft.emergencyContactRelationship === option.value && styles.roleChipActive]}
+            >
+              <Text style={[styles.roleText, draft.emergencyContactRelationship === option.value && styles.roleTextActive]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
 
         <View style={styles.roleRow}>
           {(["editor", "lector", "admin"] as const).map((role) => (
@@ -267,6 +319,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs, marginTop: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
   roleChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
