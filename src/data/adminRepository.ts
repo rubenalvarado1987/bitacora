@@ -8,7 +8,7 @@ export interface ProfileDraft {
   role: "admin" | "editor" | "lector";
   active: boolean;
   linkedUid?: string | null;
-  notes?: string;
+  nationality?: string;
   birthDate?: string;
   idNumber?: string;
   addressStreet?: string;
@@ -60,7 +60,7 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
   await setDoc(ref, {
     organizationId,
     ...draft,
-    notes: draft.notes || null,
+    nationality: draft.nationality || null,
     birthDate: draft.birthDate || null,
     idNumber: draft.idNumber || null,
     addressStreet: draft.addressStreet || null,

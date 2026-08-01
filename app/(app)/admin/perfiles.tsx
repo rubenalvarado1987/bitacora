@@ -31,7 +31,7 @@ const emptyDraft: ProfileDraft = {
   role: "editor",
   active: true,
   linkedUid: "",
-  notes: "",
+  nationality: "",
   birthDate: "",
   idNumber: "",
   addressStreet: "",
@@ -152,7 +152,7 @@ export default function AdminProfilesScreen() {
       role: profile.role,
       active: profile.active,
       linkedUid: profile.linkedUid ?? "",
-      notes: profile.notes ?? "",
+      nationality: profile.nationality ?? "",
       birthDate: profile.birthDate ?? "",
       idNumber: profile.idNumber ?? "",
       addressStreet: profile.addressStreet ?? "",
@@ -185,7 +185,7 @@ export default function AdminProfilesScreen() {
         <Text style={styles.sectionLabel}>{title}</Text>
         <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre visible" style={styles.input} />
         <TextInput value={draft.username} onChangeText={(value) => setDraft({ ...draft, username: value })} placeholder="Usuario" style={styles.input} />
-        <TextInput value={draft.notes ?? ""} onChangeText={(value) => setDraft({ ...draft, notes: value })} placeholder="Notas" style={styles.input} />
+        <TextInput value={draft.nationality ?? ""} onChangeText={(value) => setDraft({ ...draft, nationality: value })} placeholder="Nacionalidad" style={styles.input} />
 
         <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
         <DateField value={draft.birthDate ?? ""} onChange={(iso) => setDraft({ ...draft, birthDate: iso })} placeholder="Seleccionar fecha de nacimiento" />

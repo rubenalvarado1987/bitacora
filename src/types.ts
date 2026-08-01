@@ -81,7 +81,7 @@ export interface ProfileRecord {
   role: "admin" | "editor" | "lector";
   active: boolean;
   linkedUid?: string | null;
-  notes?: string;
+  nationality?: string;
   birthDate?: string;
   idNumber?: string;
   addressStreet?: string;
