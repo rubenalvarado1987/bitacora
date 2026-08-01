@@ -1,6 +1,14 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
-import { EconomicPlan, EmergencyContactRelationship, Person, ProfileRecord, Salon } from "../types";
+import {
+  EconomicPlan,
+  EmergencyContactRelationship,
+  Person,
+  ProfileRecord,
+  Salon,
+  SalonEducationalLevel,
+  SalonSchedule,
+} from "../types";
 
 export interface ProfileDraft {
   displayName: string;
@@ -43,6 +51,9 @@ export interface SalonDraft {
   active: boolean;
   professionalIds: string[];
   participantIds: string[];
+  schedule?: SalonSchedule | "";
+  maxCapacity?: number | "";
+  educationalLevel?: SalonEducationalLevel | "";
 }
 
 export function listenProfiles(organizationId: string, onChange: (items: ProfileRecord[]) => void) {
@@ -163,6 +174,9 @@ export async function saveSalon(organizationId: string, draft: SalonDraft, id?: 
   await setDoc(ref, {
     organizationId,
     ...draft,
+    schedule: draft.schedule || null,
+    maxCapacity: draft.maxCapacity || null,
+    educationalLevel: draft.educationalLevel || null,
   });
 
   return ref.id;

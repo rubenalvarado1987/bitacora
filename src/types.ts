@@ -114,6 +114,16 @@ export interface EconomicPlan {
   active: boolean;
 }
 
+export type SalonSchedule = "mañana" | "tarde" | "extendida";
+
+export type SalonEducationalLevel =
+  | "sala_cuna_menor"
+  | "sala_cuna_mayor"
+  | "medio_menor"
+  | "medio_mayor"
+  | "prekinder"
+  | "kinder";
+
 export interface Salon {
   id: string;
   organizationId: string;
@@ -121,6 +131,9 @@ export interface Salon {
   active: boolean;
   professionalIds: string[];
   participantIds: string[];
+  schedule?: SalonSchedule;
+  maxCapacity?: number;
+  educationalLevel?: SalonEducationalLevel;
 }
 
 export interface ParticipantProfile {

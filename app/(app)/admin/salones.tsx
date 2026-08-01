@@ -8,7 +8,30 @@ import Breadcrumb from "../../../src/components/Breadcrumb";
 import { SalonDraft, listenSalons, removeSalon, saveSalon } from "../../../src/data/adminRepository";
 import { showAlert } from "../../../src/utils/alert";
 
-const emptyDraft: SalonDraft = { name: "", active: true, professionalIds: [], participantIds: [] };
+const SCHEDULE_OPTIONS = [
+  { value: "mañana", label: "Mañana" },
+  { value: "tarde", label: "Tarde" },
+  { value: "extendida", label: "Extendida" },
+] as const;
+
+const EDUCATIONAL_LEVEL_OPTIONS = [
+  { value: "sala_cuna_menor", label: "Sala cuna menor" },
+  { value: "sala_cuna_mayor", label: "Sala cuna mayor" },
+  { value: "medio_menor", label: "Medio menor" },
+  { value: "medio_mayor", label: "Medio mayor" },
+  { value: "prekinder", label: "Prekínder" },
+  { value: "kinder", label: "Kínder" },
+] as const;
+
+const emptyDraft: SalonDraft = {
+  name: "",
+  active: true,
+  professionalIds: [],
+  participantIds: [],
+  schedule: "",
+  maxCapacity: "",
+  educationalLevel: "",
+};
 
 export default function SalonsScreen() {
   const { membership } = useAuth();
@@ -47,6 +70,9 @@ export default function SalonsScreen() {
       active: salon.active,
       professionalIds: salon.professionalIds,
       participantIds: salon.participantIds,
+      schedule: salon.schedule ?? "",
+      maxCapacity: salon.maxCapacity ?? "",
+      educationalLevel: salon.educationalLevel ?? "",
     });
   };
 
@@ -63,6 +89,41 @@ export default function SalonsScreen() {
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{editingId ? "Editar salón" : "Nuevo salón"}</Text>
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre del salón" style={styles.input} />
+
+        <Text style={styles.fieldLabel}>Jornada</Text>
+        <View style={styles.chipRow}>
+          {SCHEDULE_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              onPress={() => setDraft({ ...draft, schedule: option.value })}
+              style={[styles.chip, draft.schedule === option.value && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, draft.schedule === option.value && styles.chipTextActive]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <TextInput
+          value={draft.maxCapacity ? String(draft.maxCapacity) : ""}
+          onChangeText={(value) => setDraft({ ...draft, maxCapacity: value ? Number(value.replace(/[^0-9]/g, "")) : "" })}
+          placeholder="Capacidad máxima de alumnos"
+          keyboardType="numeric"
+          style={styles.input}
+        />
+
+        <Text style={styles.fieldLabel}>Nivel educativo</Text>
+        <View style={styles.chipRow}>
+          {EDUCATIONAL_LEVEL_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              onPress={() => setDraft({ ...draft, educationalLevel: option.value })}
+              style={[styles.chip, draft.educationalLevel === option.value && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, draft.educationalLevel === option.value && styles.chipTextActive]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         <TextInput value={draft.professionalIds.join(", ")} onChangeText={(value) => setDraft({ ...draft, professionalIds: value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="IDs de profesionales" style={styles.input} />
         <TextInput value={draft.participantIds.join(", ")} onChangeText={(value) => setDraft({ ...draft, participantIds: value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="IDs de participantes" style={styles.input} />
         <Pressable onPress={() => setDraft({ ...draft, active: !draft.active })} style={styles.toggleButton}><Text style={styles.toggleButtonText}>{draft.active ? "Activo" : "Inactivo"}</Text></Pressable>
@@ -74,6 +135,15 @@ export default function SalonsScreen() {
         <View key={salon.id} style={styles.listCard}>
           <Text style={styles.listTitle}>{salon.name}</Text>
           <Text style={styles.listBody}>Profesionales: {salon.professionalIds.length} · Participantes: {salon.participantIds.length}</Text>
+          <Text style={styles.listBody}>
+            {salon.schedule ? `Jornada: ${salon.schedule}` : "Sin jornada"}
+            {salon.maxCapacity ? ` · Capacidad: ${salon.maxCapacity}` : ""}
+          </Text>
+          <Text style={styles.listBody}>
+            {salon.educationalLevel
+              ? `Nivel: ${EDUCATIONAL_LEVEL_OPTIONS.find((o) => o.value === salon.educationalLevel)?.label ?? salon.educationalLevel}`
+              : "Sin nivel educativo"}
+          </Text>
           <Text style={styles.listBody}>{salon.active ? "Activo" : "Inactivo"}</Text>
           <View style={styles.actionsRow}>
             <Pressable onPress={() => startEdit(salon)}><Text style={styles.actionLink}>Editar</Text></Pressable>
@@ -90,7 +160,13 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
+  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
+  chipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
+  chipText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
+  chipTextActive: { color: colors.tealDark },
   toggleButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginBottom: spacing.sm },
   toggleButtonText: { color: colors.ink, fontWeight: "700" },
   primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },
