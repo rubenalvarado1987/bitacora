@@ -193,6 +193,99 @@ const sharedEntrySections: TemplateSection[] = [
   },
 ];
 
+// Ficha completa de matrícula para Jardín Infantil (HU específica del rubro).
+const jardinInfantilBaseSections: TemplateSection[] = [
+  {
+    id: "datos-nino",
+    title: "Datos del niño/a",
+    fields: [
+      { id: "fecha_nacimiento", label: "Fecha de nacimiento", type: "date", required: true },
+      { id: "edad", label: "Edad", type: "number" },
+      { id: "rut", label: "RUT o documento de identidad", type: "text" },
+      { id: "nacionalidad", label: "Nacionalidad", type: "text" },
+      { id: "sexo", label: "Sexo", type: "select", options: ["Femenino", "Masculino", "Otro"] },
+      { id: "direccion", label: "Dirección particular", type: "text" },
+      {
+        id: "nivel_sala",
+        label: "Nivel/sala al que ingresa",
+        type: "select",
+        options: ["Sala cuna", "Medio menor", "Medio mayor", "Prekínder", "Kínder"],
+        required: true,
+      },
+      { id: "fecha_ingreso", label: "Fecha de ingreso", type: "date" },
+      { id: "fotografia", label: "Fotografía", type: "photo" },
+      {
+        id: "grupo_sanguineo",
+        label: "Grupo sanguíneo",
+        type: "select",
+        options: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+      },
+    ],
+  },
+  {
+    id: "datos-apoderados",
+    title: "Datos de los padres o apoderados",
+    fields: [
+      { id: "nombre_apoderado", label: "Nombre completo del padre/madre/apoderado", type: "text", required: true },
+      { id: "rut_apoderado", label: "RUT del apoderado", type: "text" },
+      { id: "parentesco_apoderado", label: "Parentesco con el niño/a", type: "text" },
+      { id: "telefono_movil", label: "Teléfono móvil", type: "text" },
+      { id: "telefono_fijo", label: "Teléfono fijo", type: "text" },
+      { id: "correo_apoderado", label: "Correo electrónico", type: "text" },
+      { id: "direccion_apoderado", label: "Dirección (si es distinta a la del niño/a)", type: "text" },
+      { id: "ocupacion_apoderado", label: "Ocupación / lugar de trabajo", type: "text" },
+      { id: "horario_laboral", label: "Horario laboral", type: "text" },
+      {
+        id: "estado_civil_padres",
+        label: "Estado civil de los padres",
+        type: "select",
+        options: ["Soltero/a", "Casado/a", "Conviviente civil", "Separado/a", "Divorciado/a", "Viudo/a"],
+      },
+      { id: "estructura_familiar", label: "Con quién vive el niño/a", type: "text" },
+    ],
+  },
+  {
+    id: "contactos-emergencia",
+    title: "Contactos de emergencia",
+    fields: [
+      { id: "contacto_emergencia_nombre", label: "Nombre de contacto adicional", type: "text" },
+      { id: "contacto_emergencia_telefono", label: "Teléfono", type: "text" },
+      { id: "contacto_emergencia_parentesco", label: "Parentesco o relación con el niño/a", type: "text" },
+      { id: "personas_autorizadas_retiro", label: "Personas autorizadas para retirar (nombres y RUT)", type: "text" },
+    ],
+  },
+  {
+    id: "antecedentes-salud",
+    title: "Antecedentes de salud",
+    fields: [
+      { id: "prevision_salud", label: "Previsión de salud", type: "select", options: ["Isapre", "Fonasa"] },
+      { id: "centro_salud", label: "Centro de salud u hospital de referencia", type: "text" },
+      { id: "medico_tratante", label: "Médico tratante", type: "text" },
+      { id: "alergias", label: "Alergias (alimentarias, medicamentos, otras)", type: "text" },
+      { id: "enfermedades_cronicas", label: "Enfermedades crónicas o condiciones especiales", type: "text" },
+      { id: "medicamentos_habituales", label: "Medicamentos que toma regularmente", type: "text" },
+      { id: "vacunas_al_dia", label: "Vacunas al día", type: "select", options: ["Sí", "No"] },
+      { id: "necesidades_especiales", label: "Necesidades educativas especiales o diagnósticos", type: "text" },
+      { id: "restricciones_alimentarias", label: "Restricciones alimentarias o dieta especial", type: "text" },
+    ],
+  },
+  {
+    id: "datos-administrativos",
+    title: "Datos administrativos",
+    fields: [
+      { id: "matricula", label: "N° de matrícula o folio", type: "text" },
+      { id: "establecimiento_procedencia", label: "Establecimiento de procedencia", type: "text" },
+      {
+        id: "tipo_financiamiento",
+        label: "Tipo de financiamiento",
+        type: "select",
+        options: ["Particular", "JUNJI", "Integra", "Subvencionado"],
+      },
+      { id: "documentos_entregados", label: "Documentos entregados", type: "text" },
+    ],
+  },
+];
+
 export function getBusinessCategory(categoryId: BusinessCategoryId) {
   const category = businessCategories.find((item) => item.id === categoryId);
   if (!category) {
@@ -206,13 +299,14 @@ export const entryTemplateSections = sharedEntrySections;
 
 export function buildStarterTemplate(categoryId: BusinessCategoryId): Template {
   const category = getBusinessCategory(categoryId);
+  const baseSections = categoryId === "jardin-infantil" ? jardinInfantilBaseSections : sharedBaseSections;
 
   return {
     id: `${categoryId}-template`,
     rubro: categoryId,
     name: `Ficha inicial · ${category.label}`,
     version: 1,
-    baseSections: sharedBaseSections,
+    baseSections,
     entrySections: sharedEntrySections,
   };
 }

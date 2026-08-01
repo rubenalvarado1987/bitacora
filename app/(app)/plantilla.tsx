@@ -8,11 +8,13 @@ import { Organization, Template, TemplateField, FieldType } from "../../src/type
 import { colors, radius, spacing } from "../../src/theme";
 import { showAlert } from "../../src/utils/alert";
 import Breadcrumb from "../../src/components/Breadcrumb";
+import { buildStarterTemplate } from "../../src/data/businessCatalog";
 
 const TIPOS: FieldType[] = ["text", "number", "date", "time", "select", "scale", "checklist", "photo", "signature"];
 
 export default function PlantillaScreen() {
   const { membership } = useAuth();
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +27,7 @@ export default function PlantillaScreen() {
       const orgSnap = await getDoc(doc(db, "organizations", membership.organizationId));
       if (orgSnap.exists()) {
         const org = orgSnap.data() as Organization;
+        setOrganization(org);
         const templateSnap = await getDoc(doc(db, "templates", org.templateId));
         if (templateSnap.exists()) {
           setTemplate({ id: templateSnap.id, ...templateSnap.data() } as Template);
@@ -65,6 +68,16 @@ export default function PlantillaScreen() {
     }
   };
 
+  const restaurarFichaDelRubro = () => {
+    if (!template || !organization?.businessCategoryId) return;
+    const starter = buildStarterTemplate(organization.businessCategoryId);
+    setTemplate({ ...template, baseSections: starter.baseSections });
+    showAlert(
+      "Ficha actualizada",
+      "Se cargaron los campos de la ficha vigente para este rubro. Presiona \"Guardar plantilla\" para confirmar."
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -102,6 +115,26 @@ export default function PlantillaScreen() {
           pantalla de detalle de campo.
         </Text>
 
+        {organization?.businessCategoryId ? (
+          <Pressable onPress={restaurarFichaDelRubro} style={styles.restoreLink}>
+            <Text style={styles.restoreLinkText}>Restaurar campos de la ficha de participante según el rubro</Text>
+          </Pressable>
+        ) : null}
+
+        <Text style={styles.groupTitle}>Ficha del participante (datos base)</Text>
+        {template.baseSections.map((section) => (
+          <View key={section.id} style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {section.fields.map((field) => (
+              <View key={field.id} style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>{field.label}</Text>
+                <Text style={styles.fieldType}>{field.type}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
+
+        <Text style={styles.groupTitle}>Registro diario</Text>
         {template.entrySections.map((section) => (
           <View key={section.id} style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -151,6 +184,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   hint: { fontSize: 12, color: colors.slate, marginBottom: spacing.lg, lineHeight: 18 },
+  groupTitle: { fontSize: 13, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm, marginTop: spacing.xs },
+  restoreLink: { marginBottom: spacing.md },
+  restoreLinkText: { fontSize: 13, color: colors.teal, fontWeight: "600" },
   sectionCard: {
     backgroundColor: colors.card,
     borderWidth: 1,

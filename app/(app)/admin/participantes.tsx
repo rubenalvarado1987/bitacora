@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../../src/firebase";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
-import { Person } from "../../../src/types";
+import { FieldInput } from "../../../src/components/SectionField";
+import { Organization, Person, Template } from "../../../src/types";
 import {
   ParticipantDraft,
   listenParticipants,
@@ -28,8 +31,8 @@ const emptyDraft: ParticipantDraft = {
 export default function ParticipantsScreen() {
   const { membership } = useAuth();
   const [items, setItems] = useState<Person[]>([]);
+  const [template, setTemplate] = useState<Template | null>(null);
   const [draft, setDraft] = useState<ParticipantDraft>(emptyDraft);
-  const [baseDataText, setBaseDataText] = useState("{}");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,17 +46,33 @@ export default function ParticipantsScreen() {
     return listenParticipants(membership.organizationId, setItems);
   }, [membership?.organizationId]);
 
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    (async () => {
+      const orgSnap = await getDoc(doc(db, "organizations", membership.organizationId));
+      if (!orgSnap.exists()) return;
+      const org = orgSnap.data() as Organization;
+      const templateSnap = await getDoc(doc(db, "templates", org.templateId));
+      if (templateSnap.exists()) {
+        setTemplate({ id: templateSnap.id, ...templateSnap.data() } as Template);
+      }
+    })();
+  }, [membership?.organizationId]);
+
   const title = useMemo(() => (editingId ? "Editar participante" : "Nuevo participante"), [editingId]);
   const needsAccount = !draft.linkedUid;
 
   const reset = () => {
     setDraft(emptyDraft);
-    setBaseDataText("{}");
     setEmail("");
     setPassword("");
     setNewEmail("");
     setNewPassword("");
     setEditingId(null);
+  };
+
+  const setBaseField = (fieldId: string, value: string | number) => {
+    setDraft((prev) => ({ ...prev, baseData: { ...prev.baseData, [fieldId]: value } }));
   };
 
   const handleUpdateAccount = async () => {
@@ -85,25 +104,17 @@ export default function ParticipantsScreen() {
   };
 
   const parseBaseData = () => {
-    try {
-      return JSON.parse(baseDataText || "{}");
-    } catch {
-      return null;
-    }
+    return draft.baseData ?? {};
   };
 
   const handleSave = async () => {
     if (!membership?.organizationId) return;
-    if (!draft.name.trim() || !draft.templateId.trim()) {
-      showAlert("Faltan datos", "Completa nombre y templateId.");
+    if (!draft.name.trim()) {
+      showAlert("Faltan datos", "Completa el nombre completo.");
       return;
     }
 
     const baseData = parseBaseData();
-    if (!baseData) {
-      showAlert("Base inválida", "La ficha técnica debe ser un JSON válido.");
-      return;
-    }
 
     let linkedUid = draft.linkedUid;
 
@@ -137,6 +148,7 @@ export default function ParticipantsScreen() {
         membership.organizationId,
         {
           ...draft,
+          templateId: template?.id ?? draft.templateId,
           baseData,
           linkedUid,
         },
@@ -161,7 +173,6 @@ export default function ParticipantsScreen() {
       salonIds: item.salonIds ?? [],
       linkedUid: item.linkedUid ?? "",
     });
-    setBaseDataText(JSON.stringify(item.baseData, null, 2));
     setEmail("");
     setPassword("");
     setNewEmail("");
@@ -180,11 +191,28 @@ export default function ParticipantsScreen() {
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Participantes" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
-        <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre del participante" style={styles.input} />
-        <TextInput value={draft.templateId} onChangeText={(value) => setDraft({ ...draft, templateId: value })} placeholder="Template ID" style={styles.input} />
+        <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre completo" style={styles.input} />
         <TextInput value={draft.planId ?? ""} onChangeText={(value) => setDraft({ ...draft, planId: value })} placeholder="Plan ID" style={styles.input} />
         <TextInput value={String(draft.salonIds?.join(",") ?? "")} onChangeText={(value) => setDraft({ ...draft, salonIds: value ? value.split(",").map((item) => item.trim()).filter(Boolean) : [] })} placeholder="Salon IDs separados por coma" style={styles.input} />
-        <TextInput value={baseDataText} onChangeText={setBaseDataText} placeholder="Ficha técnica JSON" multiline style={[styles.input, styles.multiline]} />
+
+        {template ? (
+          template.baseSections.map((section) => (
+            <View key={section.id} style={styles.fichaSection}>
+              <Text style={styles.fichaSectionTitle}>{section.title}</Text>
+              {section.fields.map((field) => (
+                <FieldInput
+                  key={field.id}
+                  field={field}
+                  value={draft.baseData[field.id] as string | number | undefined}
+                  onChange={(value) => setBaseField(field.id, value)}
+                />
+              ))}
+            </View>
+          ))
+        ) : (
+          <Text style={styles.listBody}>Cargando ficha de la organización…</Text>
+        )}
+
         <View style={styles.roleRow}>
           {(["activo", "inactivo"] as const).map((status) => (
             <Pressable key={status} onPress={() => setDraft({ ...draft, status })} style={[styles.roleChip, draft.status === status && styles.roleChipActive]}>
@@ -283,6 +311,8 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  fichaSection: { marginBottom: spacing.md },
+  fichaSectionTitle: { fontSize: 12, fontWeight: "700", color: colors.tealDark, textTransform: "uppercase", marginBottom: spacing.sm },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
   multiline: { minHeight: 120, textAlignVertical: "top" },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
