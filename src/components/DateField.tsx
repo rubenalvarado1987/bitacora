@@ -8,7 +8,8 @@ const MONTHS_ES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 const WEEKDAYS_ES = ["L", "M", "M", "J", "V", "S", "D"];
-const MIN_YEAR = 1990;
+const MIN_YEAR = 1960;
+const DEFAULT_YEAR = 1990;
 const YEAR_ITEM_HEIGHT = 44;
 
 interface DateFieldProps {
@@ -21,7 +22,7 @@ interface DateFieldProps {
 export default function DateField({ value, onChange, placeholder = "Seleccionar fecha" }: DateFieldProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"days" | "years">("days");
-  const [cursor, setCursor] = useState(() => parseISODate(value) ?? new Date());
+  const [cursor, setCursor] = useState(() => parseISODate(value) ?? new Date(DEFAULT_YEAR, 0, 1));
 
   const years = React.useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -29,7 +30,7 @@ export default function DateField({ value, onChange, placeholder = "Seleccionar 
   }, []);
 
   const openPicker = () => {
-    setCursor(parseISODate(value) ?? new Date());
+    setCursor(parseISODate(value) ?? new Date(DEFAULT_YEAR, 0, 1));
     setMode("days");
     setOpen(true);
   };
