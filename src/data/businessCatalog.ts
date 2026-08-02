@@ -69,7 +69,12 @@ const sharedBaseSections: TemplateSection[] = [
     title: "Relación parental",
     fields: [
       { id: "apoderado_principal", label: "Apoderado principal", type: "text" },
-      { id: "parentesco", label: "Parentesco", type: "text" },
+      {
+        id: "parentesco",
+        label: "Parentesco",
+        type: "select",
+        options: ["Padre", "Madre", "Padrastro", "Madrastra", "Tutor/a legal", "Apoderado/a (sin parentesco biológico)"],
+      },
       { id: "telefono_apoderado", label: "Teléfono apoderado", type: "text" },
     ],
   },
@@ -228,7 +233,12 @@ const jardinInfantilBaseSections: TemplateSection[] = [
     fields: [
       { id: "nombre_apoderado", label: "Nombre completo del padre/madre/apoderado", type: "text", required: true },
       { id: "rut_apoderado", label: "RUT del apoderado", type: "text" },
-      { id: "parentesco_apoderado", label: "Parentesco con el niño/a", type: "text" },
+      {
+        id: "parentesco_apoderado",
+        label: "Parentesco con el niño/a",
+        type: "select",
+        options: ["Padre", "Madre", "Padrastro", "Madrastra", "Tutor/a legal", "Apoderado/a (sin parentesco biológico)"],
+      },
       { id: "telefono_movil", label: "Teléfono móvil", type: "text" },
       { id: "telefono_fijo", label: "Teléfono fijo", type: "text" },
       { id: "correo_apoderado", label: "Correo electrónico", type: "text" },
@@ -250,7 +260,12 @@ const jardinInfantilBaseSections: TemplateSection[] = [
     fields: [
       { id: "contacto_emergencia_nombre", label: "Nombre de contacto adicional", type: "text" },
       { id: "contacto_emergencia_telefono", label: "Teléfono", type: "text" },
-      { id: "contacto_emergencia_parentesco", label: "Parentesco o relación con el niño/a", type: "text" },
+      {
+        id: "contacto_emergencia_parentesco",
+        label: "Parentesco o relación con el niño/a",
+        type: "select",
+        options: ["Padre", "Madre", "Padrastro", "Madrastra", "Tutor/a legal", "Apoderado/a (sin parentesco biológico)"],
+      },
       { id: "personas_autorizadas_retiro", label: "Personas autorizadas para retirar (nombres y RUT)", type: "text" },
     ],
   },

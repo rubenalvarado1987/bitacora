@@ -18,12 +18,12 @@ import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
 
 const RELATIONSHIP_OPTIONS = [
-  { value: "padre", label: "Padre" },
-  { value: "madre", label: "Madre" },
-  { value: "pareja", label: "Pareja" },
-  { value: "hijo_hija", label: "Hijo o hija" },
-  { value: "hermanos", label: "Hermanos" },
-  { value: "otros", label: "Otros" },
+  { value: "Padre", label: "Padre" },
+  { value: "Madre", label: "Madre" },
+  { value: "Padrastro", label: "Padrastro" },
+  { value: "Madrastra", label: "Madrastra" },
+  { value: "Tutor/a legal", label: "Tutor/a legal" },
+  { value: "Apoderado/a (sin parentesco biológico)", label: "Apoderado/a (sin parentesco biológico)" },
 ] as const;
 
 const emptyDraft: ProfileDraft = {
