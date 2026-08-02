@@ -207,6 +207,7 @@ export default function ParticipantsScreen() {
       }
     }
 
+    setSaving(true);
     try {
       await saveParticipant(
         membership.organizationId,
