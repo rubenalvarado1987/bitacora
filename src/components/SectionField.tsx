@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { TemplateField } from "../types";
 import { colors, radius, spacing } from "../theme";
 import DateField from "./DateField";
+import DropdownSelect from "./DropdownSelect";
 
 // Fila de solo lectura, usada para mostrar los datos base de una ficha.
 export function FieldDisplay({ label, value }: { label: string; value: string | number | boolean | undefined }) {
@@ -64,17 +65,12 @@ export function FieldInput({
       )}
 
       {field.type === "select" && (
-        <View style={styles.chipRow}>
-          {(field.options ?? []).map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => onChange(option)}
-              style={[styles.chip, value === option && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, value === option && styles.chipTextActive]}>{option}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <DropdownSelect
+          value={value !== undefined ? String(value) : undefined}
+          options={field.options ?? []}
+          onChange={onChange}
+          placeholder="Seleccionar opción"
+        />
       )}
 
       {field.type === "scale" && (

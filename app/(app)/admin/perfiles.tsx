@@ -6,6 +6,7 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import DateField from "../../../src/components/DateField";
+import DropdownSelect from "../../../src/components/DropdownSelect";
 import { ProfileRecord, Salon } from "../../../src/types";
 import {
   ProfileDraft,
@@ -229,17 +230,15 @@ export default function AdminProfilesScreen() {
         <Text style={styles.fieldLabel}>Contacto de emergencia</Text>
         <TextInput value={draft.emergencyContactName ?? ""} onChangeText={(value) => setDraft({ ...draft, emergencyContactName: value })} placeholder="Nombre del contacto" style={styles.input} />
         <TextInput value={draft.emergencyContactPhone ?? ""} onChangeText={(value) => setDraft({ ...draft, emergencyContactPhone: value })} placeholder="Teléfono del contacto" keyboardType="phone-pad" style={styles.input} />
-        <View style={styles.roleRow}>
-          {RELATIONSHIP_OPTIONS.map((option) => (
-            <Pressable
-              key={option.value}
-              onPress={() => setDraft({ ...draft, emergencyContactRelationship: option.value })}
-              style={[styles.roleChip, draft.emergencyContactRelationship === option.value && styles.roleChipActive]}
-            >
-              <Text style={[styles.roleText, draft.emergencyContactRelationship === option.value && styles.roleTextActive]}>{option.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <DropdownSelect
+          value={draft.emergencyContactRelationship ?? ""}
+          options={RELATIONSHIP_OPTIONS.map((o) => o.label)}
+          onChange={(label) => {
+            const option = RELATIONSHIP_OPTIONS.find((o) => o.label === label);
+            setDraft({ ...draft, emergencyContactRelationship: option?.value ?? "" });
+          }}
+          placeholder="Seleccionar parentesco"
+        />
 
         <View style={styles.roleRow}>
           {(["editor", "lector", "admin"] as const).map((role) => (
