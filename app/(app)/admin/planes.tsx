@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
@@ -18,6 +18,7 @@ export default function PlansScreen() {
   const [items, setItems] = useState<EconomicPlan[]>([]);
   const [draft, setDraft] = useState<PlanDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -35,11 +36,14 @@ export default function PlansScreen() {
       showAlert("Faltan datos", "Completa el nombre del plan.");
       return;
     }
+    setSaving(true);
     try {
       await savePlan(membership.organizationId, draft, editingId ?? undefined);
       reset();
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -88,7 +92,9 @@ export default function PlansScreen() {
         <Pressable onPress={() => setDraft({ ...draft, active: !draft.active })} style={styles.toggleButton}>
           <Text style={styles.toggleButtonText}>{draft.active ? "Activo" : "Inactivo"}</Text>
         </Pressable>
-        <Pressable onPress={handleSave} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Guardar plan</Text></Pressable>
+        <Pressable onPress={handleSave} disabled={saving} style={[styles.primaryButton, saving && styles.primaryButtonDisabled]}>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Guardar plan</Text>}
+        </Pressable>
         <Pressable onPress={reset} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Limpiar</Text></Pressable>
       </View>
 
@@ -122,6 +128,7 @@ const styles = StyleSheet.create({
   toggleButtonText: { color: colors.ink, fontWeight: "700" },
   primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },
   primaryButtonText: { color: "#fff", fontWeight: "700" },
+  primaryButtonDisabled: { opacity: 0.6 },
   secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.sm },
   secondaryButtonText: { color: colors.ink, fontWeight: "600" },
   listCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
