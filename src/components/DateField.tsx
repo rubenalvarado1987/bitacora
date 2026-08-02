@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing } from "../theme";
 import { formatCLDate, parseISODate, toISODate } from "../utils/date";
 
@@ -8,6 +8,8 @@ const MONTHS_ES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 const WEEKDAYS_ES = ["L", "M", "M", "J", "V", "S", "D"];
+const MIN_YEAR = 1990;
+const YEAR_ITEM_HEIGHT = 44;
 
 interface DateFieldProps {
   value: string; // ISO aaaa-mm-dd (o "")
@@ -18,11 +20,23 @@ interface DateFieldProps {
 // Selector de fecha propio (sin dependencias nativas) que siempre muestra formato chileno DD-MM-AAAA.
 export default function DateField({ value, onChange, placeholder = "Seleccionar fecha" }: DateFieldProps) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"days" | "years">("days");
   const [cursor, setCursor] = useState(() => parseISODate(value) ?? new Date());
+
+  const years = React.useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: currentYear - MIN_YEAR + 1 }, (_, i) => currentYear - i);
+  }, []);
 
   const openPicker = () => {
     setCursor(parseISODate(value) ?? new Date());
+    setMode("days");
     setOpen(true);
+  };
+
+  const selectYear = (year: number) => {
+    setCursor((prev) => new Date(year, prev.getMonth(), 1));
+    setMode("days");
   };
 
   const year = cursor.getFullYear();
@@ -54,51 +68,73 @@ export default function DateField({ value, onChange, placeholder = "Seleccionar 
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.calendarCard} onPress={(e) => e.stopPropagation()}>
             <View style={styles.calendarHeader}>
-              <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={8}>
-                <Text style={styles.navButtonText}>‹</Text>
+              <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={8} disabled={mode === "years"}>
+                <Text style={[styles.navButtonText, mode === "years" && styles.navButtonHidden]}>‹</Text>
               </Pressable>
-              <Text style={styles.calendarTitle}>
-                {MONTHS_ES[month]} {year}
-              </Text>
-              <Pressable onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={8}>
-                <Text style={styles.navButtonText}>›</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.weekRow}>
-              {WEEKDAYS_ES.map((w, i) => (
-                <Text key={`${w}-${i}`} style={styles.weekday}>
-                  {w}
+              <Pressable onPress={() => setMode(mode === "years" ? "days" : "years")} hitSlop={8}>
+                <Text style={styles.calendarTitle}>
+                  {mode === "years" ? "Selecciona el año" : `${MONTHS_ES[month]} ${year}`}
                 </Text>
-              ))}
+              </Pressable>
+              <Pressable onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={8} disabled={mode === "years"}>
+                <Text style={[styles.navButtonText, mode === "years" && styles.navButtonHidden]}>›</Text>
+              </Pressable>
             </View>
 
-            <View style={styles.grid}>
-              {cells.map((day, idx) => {
-                if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
-                const iso = toISODate(new Date(year, month, day));
-                const isSelected = iso === value;
-                return (
+            {mode === "years" ? (
+              <FlatList
+                data={years}
+                keyExtractor={(item) => String(item)}
+                style={styles.yearList}
+                initialScrollIndex={Math.max(0, years.indexOf(year))}
+                getItemLayout={(_, index) => ({ length: YEAR_ITEM_HEIGHT, offset: YEAR_ITEM_HEIGHT * index, index })}
+                renderItem={({ item }) => (
                   <Pressable
-                    key={iso}
-                    style={[styles.dayCell, isSelected && styles.dayCellSelected]}
-                    onPress={() => selectDay(day)}
+                    style={[styles.yearRow, item === year && styles.yearRowSelected]}
+                    onPress={() => selectYear(item)}
                   >
-                    <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                    <Text style={[styles.yearText, item === year && styles.yearTextSelected]}>{item}</Text>
                   </Pressable>
-                );
-              })}
-            </View>
+                )}
+              />
+            ) : (
+              <>
+                <View style={styles.weekRow}>
+                  {WEEKDAYS_ES.map((w, i) => (
+                    <Text key={`${w}-${i}`} style={styles.weekday}>
+                      {w}
+                    </Text>
+                  ))}
+                </View>
 
-            <Pressable
-              style={styles.todayButton}
-              onPress={() => {
-                onChange(toISODate(new Date()));
-                setOpen(false);
-              }}
-            >
-              <Text style={styles.todayButtonText}>Hoy</Text>
-            </Pressable>
+                <View style={styles.grid}>
+                  {cells.map((day, idx) => {
+                    if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
+                    const iso = toISODate(new Date(year, month, day));
+                    const isSelected = iso === value;
+                    return (
+                      <Pressable
+                        key={iso}
+                        style={[styles.dayCell, isSelected && styles.dayCellSelected]}
+                        onPress={() => selectDay(day)}
+                      >
+                        <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Pressable
+                  style={styles.todayButton}
+                  onPress={() => {
+                    onChange(toISODate(new Date()));
+                    setOpen(false);
+                  }}
+                >
+                  <Text style={styles.todayButtonText}>Hoy</Text>
+                </Pressable>
+              </>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -140,6 +176,7 @@ const styles = StyleSheet.create({
   },
   navButton: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   navButtonText: { fontSize: 20, color: colors.teal, fontWeight: "700" },
+  navButtonHidden: { opacity: 0 },
   calendarTitle: { fontSize: 14, fontWeight: "700", color: colors.ink, textTransform: "capitalize" },
   weekRow: { flexDirection: "row" },
   weekday: { flex: 1, textAlign: "center", fontSize: 11, color: colors.slate, fontWeight: "600" },
@@ -148,6 +185,11 @@ const styles = StyleSheet.create({
   dayCellSelected: { backgroundColor: colors.teal, borderRadius: radius.pill },
   dayText: { fontSize: 13, color: colors.ink },
   dayTextSelected: { color: "#fff", fontWeight: "700" },
+  yearList: { maxHeight: 280 },
+  yearRow: { height: 44, alignItems: "center", justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.line },
+  yearRowSelected: { backgroundColor: colors.tealTint },
+  yearText: { fontSize: 14, color: colors.ink },
+  yearTextSelected: { color: colors.tealDark, fontWeight: "700" },
   todayButton: { marginTop: spacing.sm, alignSelf: "center" },
   todayButtonText: { color: colors.teal, fontWeight: "700", fontSize: 13 },
 });

@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { TemplateField } from "../types";
 import { colors, radius, spacing } from "../theme";
+import DateField from "./DateField";
 
 // Fila de solo lectura, usada para mostrar los datos base de una ficha.
 export function FieldDisplay({ label, value }: { label: string; value: string | number | boolean | undefined }) {
@@ -33,13 +34,21 @@ export function FieldInput({
         {field.required ? " *" : ""}
       </Text>
 
-      {(field.type === "text" || field.type === "date" || field.type === "time") && (
+      {(field.type === "text" || field.type === "time") && (
         <TextInput
           style={styles.textInput}
           value={value !== undefined ? String(value) : ""}
           onChangeText={onChange}
           placeholder={placeholderFor(field.type)}
           placeholderTextColor={colors.slate}
+        />
+      )}
+
+      {field.type === "date" && (
+        <DateField
+          value={value !== undefined ? String(value) : ""}
+          onChange={onChange}
+          placeholder="Seleccionar fecha"
         />
       )}
 
