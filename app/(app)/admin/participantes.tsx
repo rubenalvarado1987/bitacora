@@ -8,6 +8,7 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import { FieldInput } from "../../../src/components/SectionField";
+import DropdownSelect from "../../../src/components/DropdownSelect";
 import { EconomicPlan, Organization, Person, Salon, Template } from "../../../src/types";
 import {
   ParticipantDraft,
@@ -19,6 +20,17 @@ import {
 } from "../../../src/data/adminRepository";
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
+
+const PARENTESCO_OPTIONS = [
+  "Padre",
+  "Madre",
+  "Padrastro",
+  "Madrastra",
+  "Tutor/a legal",
+  "Apoderado/a (sin parentesco biológico)",
+];
+
+const PARENTESCO_FIELDS = new Set(["parentesco", "parentesco_apoderado", "contacto_emergencia_parentesco"]);
 
 const emptyDraft: ParticipantDraft = {
   name: "",
@@ -319,14 +331,24 @@ export default function ParticipantsScreen() {
           template.baseSections.map((section) => (
             <View key={section.id} style={styles.fichaSection}>
               <Text style={styles.fichaSectionTitle}>{section.title}</Text>
-              {section.fields.map((field) => (
-                <FieldInput
-                  key={field.id}
-                  field={field}
-                  value={draft.baseData[field.id] as string | number | undefined}
-                  onChange={(value) => setBaseField(field.id, value)}
-                />
-              ))}
+              {section.fields.map((field) =>
+                PARENTESCO_FIELDS.has(field.id) ? (
+                  <DropdownSelect
+                    key={field.id}
+                    value={draft.baseData[field.id] !== undefined ? String(draft.baseData[field.id]) : undefined}
+                    options={PARENTESCO_OPTIONS}
+                    onChange={(value) => setBaseField(field.id, value)}
+                    placeholder="Seleccionar parentesco"
+                  />
+                ) : (
+                  <FieldInput
+                    key={field.id}
+                    field={field}
+                    value={draft.baseData[field.id] as string | number | undefined}
+                    onChange={(value) => setBaseField(field.id, value)}
+                  />
+                )
+              )}
             </View>
           ))
         ) : (
