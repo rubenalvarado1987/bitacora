@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  ImageBackground,
   Platform,
   Pressable,
   StyleSheet,
@@ -51,7 +52,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require("../assets/images/login-bg.png")}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <View style={styles.overlay} />
       <Text style={styles.brand}>Bitácora</Text>
       <Text style={styles.subtitle}>Ficha autoadministrable y seguimiento longitudinal</Text>
 
@@ -104,7 +110,7 @@ export default function LoginScreen() {
           </Link>
         </View>
       </View>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -126,10 +132,13 @@ function mensajeDeError(code?: string) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.paper,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.xl,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.55)",
   },
   brand: { fontSize: 34, fontWeight: "700", color: colors.tealDark },
   subtitle: {
