@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { listenParticipants, listenPlans, listenProfiles, listenSalons } from "../../src/data/adminRepository";
 import { EconomicPlan, Person, ProfileRecord, Salon } from "../../src/types";
 import { colors, radius, spacing } from "../../src/theme";
+import Breadcrumb from "../../src/components/Breadcrumb";
 
 export default function HomeScreen() {
   const { membership, signOut } = useAuth();
@@ -30,11 +31,11 @@ export default function HomeScreen() {
 
   const setupSteps = useMemo(
     () => [
-      { key: "perfiles", label: "Perfiles creados", done: profiles.length > 0 },
-      { key: "profesionales", label: "Profesionales asignados", done: profiles.some((p) => p.role === "editor") },
-      { key: "participantes", label: "Participantes registrados", done: participants.length > 0 },
-      { key: "salones", label: "Salones creados", done: salons.length > 0 },
-      { key: "planes", label: "Planes económicos creados", done: plans.length > 0 },
+      { key: "perfiles", label: "Perfiles creados", done: profiles.length > 0, href: "/admin/perfiles" },
+      { key: "profesionales", label: "Profesionales asignados", done: profiles.some((p) => p.role === "editor"), href: "/admin/perfiles" },
+      { key: "participantes", label: "Participantes registrados", done: participants.length > 0, href: "/admin/participantes" },
+      { key: "salones", label: "Salones creados", done: salons.length > 0, href: "/admin/salones" },
+      { key: "planes", label: "Planes económicos creados", done: plans.length > 0, href: "/admin/planes" },
     ],
     [profiles, participants, salons, plans]
   );
@@ -43,6 +44,8 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Breadcrumb items={[{ label: "Inicio" }]} />
       <View style={styles.hero}>
         <Text style={styles.kicker}>Bitácora App</Text>
         <Text style={styles.title}>Bienvenido de vuelta.</Text>
@@ -88,12 +91,17 @@ export default function HomeScreen() {
               : "Completa estos pasos para dejar tu centro listo para operar."}
           </Text>
           {setupSteps.map((step) => (
-            <View key={step.key} style={styles.stepRow}>
+            <Pressable
+              key={step.key}
+              style={({ pressed }) => [styles.stepRow, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push(step.href as any)}
+            >
               <View style={[styles.stepDot, step.done && styles.stepDotDone]}>
                 {step.done ? <Text style={styles.stepCheck}>✓</Text> : null}
               </View>
               <Text style={[styles.stepLabel, step.done && styles.stepLabelDone]}>{step.label}</Text>
-            </View>
+              <Text style={styles.stepArrow}>›</Text>
+            </Pressable>
           ))}
           <Pressable style={styles.progressAction} onPress={() => router.push("/admin" as any)}>
             <Text style={styles.progressActionText}>Ir al panel admin</Text>
@@ -109,11 +117,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   hero: {
     backgroundColor: colors.card,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
+    ...Platform.select({ web: { boxShadow: "0 1px 4px rgba(0,0,0,0.07)" } }),
   },
   kicker: { fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", color: colors.teal },
   title: { fontSize: 26, lineHeight: 32, fontWeight: "700", color: colors.ink, marginTop: spacing.xs },
@@ -140,6 +149,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    ...Platform.select({ web: { boxShadow: "0 1px 4px rgba(0,0,0,0.07)" } }),
   },
   progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   progressTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
@@ -154,6 +164,7 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", borderRadius: radius.pill, backgroundColor: colors.teal },
   progressNote: { fontSize: 12, color: colors.slate, marginTop: spacing.sm, lineHeight: 18 },
   stepRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
+  stepArrow: { fontSize: 16, color: colors.slate, marginLeft: "auto" },
   stepDot: {
     width: 20,
     height: 20,
