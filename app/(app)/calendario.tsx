@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +25,7 @@ import TimeField from "../../src/components/TimeField";
 import { formatCLDate, parseISODate, todayISODate, toISODate } from "../../src/utils/date";
 import { colors, radius, spacing } from "../../src/theme";
 import { CalendarEvent, Person, ProfileRecord, Salon } from "../../src/types";
+import { useSnackbar } from "../../src/context/SnackbarContext";
 
 const MONTHS_ES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -57,6 +59,7 @@ function shiftDay(iso: string, delta: number) {
 
 export default function CalendarioScreen() {
   const { membership } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const role = membership?.role ?? "lector";
   const isAdmin = role === "admin";
   const isEditorRole = role === "editor" || role === "profesional";
@@ -74,6 +77,7 @@ export default function CalendarioScreen() {
   const [draft, setDraft] = useState<CalendarEventDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -222,11 +226,15 @@ export default function CalendarioScreen() {
       ...draft,
       date: draft.recurrence === "daily" ? draft.date || todayISODate() : draft.date,
     };
+    setSaving(true);
     try {
       await saveCalendarEvent(membership.organizationId, payload, membership.uid, editingId ?? undefined);
       resetForm();
+      showSnackbar("Guardado exitosamente");
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -396,8 +404,8 @@ export default function CalendarioScreen() {
                 ))}
               </ScrollView>
             ) : null}
-            <Pressable onPress={handleSave} style={styles.saveButton}>
-              <Text style={styles.saveButtonText}>Guardar</Text>
+            <Pressable onPress={handleSave} disabled={saving} style={[styles.saveButton, saving && styles.saveButtonDisabled]}>
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Guardar</Text>}
             </Pressable>
           </View>
         ) : null}
@@ -688,6 +696,7 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, color: colors.slate, fontWeight: "600", marginBottom: 4 },
   saveButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" },
   saveButtonText: { color: "#fff", fontWeight: "700" },
+  saveButtonDisabled: { opacity: 0.6 },
   allDaySection: { padding: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line, backgroundColor: colors.paper },
   allDayLabel: { fontSize: 12, fontWeight: "700", color: colors.tealDark, marginBottom: spacing.xs },
   hourList: { padding: spacing.sm },
