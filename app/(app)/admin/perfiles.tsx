@@ -7,6 +7,7 @@ import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import DateField from "../../../src/components/DateField";
 import DropdownSelect from "../../../src/components/DropdownSelect";
+import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { ProfileRecord, Salon } from "../../../src/types";
 import {
   ProfileDraft,
@@ -48,6 +49,7 @@ const emptyDraft: ProfileDraft = {
 
 export default function AdminProfilesScreen() {
   const { membership } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const [items, setItems] = useState<ProfileRecord[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [salonSearch, setSalonSearch] = useState("");
@@ -167,6 +169,7 @@ export default function AdminProfilesScreen() {
     try {
       await saveProfile(membership.organizationId, { ...draft, linkedUid }, editingId ?? undefined);
       reset();
+      showSnackbar("Guardado exitosamente");
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
     } finally {

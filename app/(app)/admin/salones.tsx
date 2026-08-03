@@ -6,6 +6,7 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { Salon } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import { SalonDraft, listenSalons, removeSalon, saveSalon } from "../../../src/data/adminRepository";
+import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { showAlert } from "../../../src/utils/alert";
 
 const SCHEDULE_OPTIONS = [
@@ -35,6 +36,7 @@ const emptyDraft: SalonDraft = {
 
 export default function SalonsScreen() {
   const { membership } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const [items, setItems] = useState<Salon[]>([]);
   const [draft, setDraft] = useState<SalonDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export default function SalonsScreen() {
     try {
       await saveSalon(membership.organizationId, draft, editingId ?? undefined);
       reset();
+      showSnackbar("Guardado exitosamente");
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
     } finally {

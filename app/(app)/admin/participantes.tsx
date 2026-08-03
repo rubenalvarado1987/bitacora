@@ -9,6 +9,7 @@ import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import { FieldInput } from "../../../src/components/SectionField";
 import DropdownSelect from "../../../src/components/DropdownSelect";
+import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { EconomicPlan, Organization, Person, Salon, Template } from "../../../src/types";
 import {
   ParticipantDraft,
@@ -44,6 +45,7 @@ const emptyDraft: ParticipantDraft = {
 
 export default function ParticipantsScreen() {
   const { membership } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const [items, setItems] = useState<Person[]>([]);
   const [template, setTemplate] = useState<Template | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
@@ -220,6 +222,7 @@ export default function ParticipantsScreen() {
         editingId ?? undefined
       );
       reset();
+      showSnackbar("Guardado exitosamente");
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
     } finally {

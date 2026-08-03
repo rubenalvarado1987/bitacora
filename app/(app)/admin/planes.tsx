@@ -6,6 +6,7 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { EconomicPlan } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import DateField from "../../../src/components/DateField";
+import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { PlanDraft, listenPlans, removePlan, savePlan } from "../../../src/data/adminRepository";
 import { showAlert } from "../../../src/utils/alert";
 
@@ -15,6 +16,7 @@ const emptyDraft: PlanDraft = { name: "", cost: 0, period: "Mensual", validUntil
 
 export default function PlansScreen() {
   const { membership } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const [items, setItems] = useState<EconomicPlan[]>([]);
   const [draft, setDraft] = useState<PlanDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export default function PlansScreen() {
     try {
       await savePlan(membership.organizationId, draft, editingId ?? undefined);
       reset();
+      showSnackbar("Guardado exitosamente");
     } catch (e: any) {
       showAlert("No se pudo guardar", e?.message ?? "Intenta de nuevo.");
     } finally {
