@@ -55,7 +55,8 @@ export default function LoginScreen() {
     <ImageBackground
       source={require("../assets/images/login-bg.png")}
       style={styles.container}
-      resizeMode="cover"
+      resizeMode="contain"
+      imageStyle={styles.bgImage}
     >
       <View style={styles.overlay} />
       <Text style={styles.brand}>Bitácora</Text>
@@ -135,10 +136,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.xl,
+    backgroundColor: colors.paper,
+  },
+  bgImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "contain",
+    top: 0,
+    opacity: 0.35,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.55)",
+    backgroundColor: "rgba(255,255,255,0.0)",
   },
   brand: { fontSize: 34, fontWeight: "700", color: colors.tealDark },
   subtitle: {
