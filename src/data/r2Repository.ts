@@ -1,16 +1,21 @@
+import { getIdToken } from "firebase/auth";
 import { auth } from "../firebase";
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_WORKER_URL ?? "").replace(/\/$/, "");
 const WORKER_SECRET = process.env.EXPO_PUBLIC_WORKER_SECRET ?? "";
+// En producción Vercel, R2_ENABLED=true activa el picker y usa /api/upload-photo.
+const R2_ENABLED = process.env.EXPO_PUBLIC_R2_ENABLED === "true";
 
 export function isR2Configured(): boolean {
-  return Boolean(WORKER_URL && WORKER_SECRET);
+  return R2_ENABLED || Boolean(WORKER_URL && WORKER_SECRET);
 }
 
 /**
- * Sube una foto de participante al Worker de Cloudflare y devuelve la URL pública.
+ * Sube una foto de participante a R2 y devuelve la URL pública.
  *
- * Flujo: POST multipart → Worker → R2 binding → { publicUrl }
+ * Rutas (en orden de preferencia):
+ *   1. Worker de Cloudflare (EXPO_PUBLIC_WORKER_URL) — dev local o despliegue propio
+ *   2. Función Vercel /api/upload-photo         — producción Vercel (EXPO_PUBLIC_R2_ENABLED=true)
  */
 export async function uploadParticipantPhoto(
   imageUri: string,
@@ -22,18 +27,42 @@ export async function uploadParticipantPhoto(
   const fileRes = await fetch(imageUri);
   const blob = await fileRes.blob();
 
-  const form = new FormData();
-  form.append("file", blob, `participant_${participantId}_${Date.now()}.jpg`);
-  form.append("participantId", participantId);
+  if (WORKER_URL && WORKER_SECRET) {
+    const form = new FormData();
+    form.append("file", blob, `participant_${participantId}_${Date.now()}.jpg`);
+    form.append("participantId", participantId);
 
-  const res = await fetch(WORKER_URL, {
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${WORKER_SECRET}` },
+      body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(`Worker: ${data.error ?? res.statusText}`);
+    return data.publicUrl as string;
+  }
+
+  // Ruta Vercel: presigned PUT generado server-side con las credenciales R2.
+  const idToken = await getIdToken(auth.currentUser);
+  const metaRes = await fetch("/api/upload-photo", {
     method: "POST",
-    headers: { Authorization: `Bearer ${WORKER_SECRET}` },
-    body: form,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ participantId }),
   });
+  if (!metaRes.ok) {
+    const body = await metaRes.json().catch(() => ({}));
+    throw new Error(`upload-photo: ${body.error ?? metaRes.statusText}`);
+  }
+  const { uploadUrl, publicUrl } = await metaRes.json();
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(`Worker: ${data.error ?? res.statusText}`);
-
-  return data.publicUrl as string;
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "image/jpeg" },
+    body: blob,
+  });
+  if (!putRes.ok) throw new Error(`R2 PUT: ${putRes.status} ${putRes.statusText}`);
+  return publicUrl as string;
 }
