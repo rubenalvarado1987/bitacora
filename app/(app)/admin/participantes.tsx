@@ -19,6 +19,7 @@ import {
   listenSalons,
   removeParticipant,
   saveParticipant,
+  updateParticipantAccountEmail,
 } from "../../../src/data/adminRepository";
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
@@ -42,6 +43,7 @@ const emptyDraft: ParticipantDraft = {
   planId: "",
   salonIds: [],
   linkedUid: "",
+  accountEmail: "",
 };
 
 export default function ParticipantsScreen() {
@@ -166,6 +168,10 @@ export default function ParticipantsScreen() {
         email: newEmail.trim() || undefined,
         password: newPassword || undefined,
       });
+      if (newEmail.trim()) {
+        await updateParticipantAccountEmail(membership.organizationId, editingId!, newEmail.trim());
+        setDraft((prev) => ({ ...prev, accountEmail: newEmail.trim() }));
+      }
       setNewEmail("");
       setNewPassword("");
       showAlert("Listo", "El acceso fue actualizado.");
@@ -230,6 +236,7 @@ export default function ParticipantsScreen() {
           templateId: template?.id ?? draft.templateId,
           baseData,
           linkedUid,
+          accountEmail: draft.accountEmail || email.trim() || undefined,
         },
         editingId ?? undefined
       );
@@ -252,6 +259,7 @@ export default function ParticipantsScreen() {
       planId: item.planId ?? "",
       salonIds: item.salonIds ?? [],
       linkedUid: item.linkedUid ?? "",
+      accountEmail: item.accountEmail ?? "",
     });
     setEmail("");
     setPassword("");
@@ -404,7 +412,7 @@ export default function ParticipantsScreen() {
           </View>
         ) : (
           <View style={styles.accountBox}>
-            <Text style={styles.accountLinked}>Acceso al sistema vinculado · UID: {draft.linkedUid}</Text>
+            <Text style={styles.accountLinked}>Acceso al sistema vinculado · {draft.accountEmail || "correo no registrado"}</Text>
             <Text style={styles.accountLabel}>Cambiar correo / contraseña</Text>
             <TextInput
               value={newEmail}
@@ -444,7 +452,7 @@ export default function ParticipantsScreen() {
           <Text style={styles.listBody}>
             Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
           </Text>
-          <Text style={styles.listBody}>{item.linkedUid ? "Acceso al sistema creado" : "Sin acceso creado"}</Text>
+          <Text style={styles.listBody}>{item.linkedUid ? `Acceso al sistema creado · ${item.accountEmail || "correo no registrado"}` : "Sin acceso creado"}</Text>
           <View style={styles.actionsRow}>
             <Pressable onPress={() => startEdit(item)}><Text style={styles.actionLink}>Editar</Text></Pressable>
             <Pressable onPress={() => handleDelete(item.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>

@@ -52,6 +52,7 @@ export interface Person {
   planId?: string;
   salonIds?: string[];
   linkedUid?: string | null;
+  accountEmail?: string;
 }
 
 export interface Entry {
@@ -81,6 +82,7 @@ export interface ProfileRecord {
   role: "admin" | "editor" | "lector";
   active: boolean;
   linkedUid?: string | null;
+  accountEmail?: string;
   nationality?: string;
   birthDate?: string;
   idNumber?: string;

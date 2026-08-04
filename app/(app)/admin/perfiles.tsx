@@ -15,6 +15,7 @@ import {
   listenSalons,
   removeProfile,
   saveProfile,
+  updateProfileAccountEmail,
 } from "../../../src/data/adminRepository";
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
@@ -40,6 +41,7 @@ const emptyDraft: ProfileDraft = {
   role: "editor",
   active: true,
   linkedUid: "",
+  accountEmail: "",
   nationality: "",
   birthDate: "",
   idNumber: "",
@@ -136,6 +138,10 @@ export default function AdminProfilesScreen() {
         email: newEmail.trim() || undefined,
         password: newPassword || undefined,
       });
+      if (newEmail.trim()) {
+        await updateProfileAccountEmail(membership.organizationId, editingId!, newEmail.trim());
+        setDraft((prev) => ({ ...prev, accountEmail: newEmail.trim() }));
+      }
       setNewEmail("");
       setNewPassword("");
       showAlert("Listo", "El acceso fue actualizado.");
@@ -192,7 +198,7 @@ export default function AdminProfilesScreen() {
     }
 
     try {
-      await saveProfile(membership.organizationId, { ...draft, linkedUid }, editingId ?? undefined);
+      await saveProfile(membership.organizationId, { ...draft, linkedUid, accountEmail: draft.accountEmail || email.trim() || undefined }, editingId ?? undefined);
       reset();
       showSnackbar("Guardado exitosamente");
     } catch (e: any) {
@@ -210,6 +216,7 @@ export default function AdminProfilesScreen() {
       role: profile.role,
       active: profile.active,
       linkedUid: profile.linkedUid ?? "",
+      accountEmail: profile.accountEmail ?? "",
       nationality: profile.nationality ?? "",
       birthDate: profile.birthDate ?? "",
       idNumber: profile.idNumber ?? "",
@@ -362,7 +369,7 @@ export default function AdminProfilesScreen() {
           </View>
         ) : (
           <View style={styles.accountBox}>
-            <Text style={styles.accountLinked}>Cuenta vinculada · UID: {draft.linkedUid}</Text>
+            <Text style={styles.accountLinked}>Cuenta vinculada · {draft.accountEmail || "correo no registrado"}</Text>
             <Text style={styles.accountLabel}>Cambiar correo / contraseña</Text>
             <TextInput
               value={newEmail}
@@ -402,7 +409,7 @@ export default function AdminProfilesScreen() {
         <View key={item.id} style={styles.listCard}>
           <Text style={styles.listTitle}>{item.displayName}</Text>
           <Text style={styles.listBody}>@{item.username} · {item.role}{item.position ? ` · ${item.position}` : ""} · {item.active ? "Activo" : "Inactivo"}</Text>
-          <Text style={styles.listBody}>{item.linkedUid ? "Cuenta vinculada" : "Sin acceso creado"}</Text>
+          <Text style={styles.listBody}>{item.linkedUid ? `Cuenta vinculada · ${item.accountEmail || "correo no registrado"}` : "Sin acceso creado"}</Text>
           <Text style={styles.listBody}>
             Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
           </Text>

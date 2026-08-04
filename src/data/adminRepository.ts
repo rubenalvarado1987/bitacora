@@ -16,6 +16,7 @@ export interface ProfileDraft {
   role: "admin" | "editor" | "lector";
   active: boolean;
   linkedUid?: string | null;
+  accountEmail?: string;
   nationality?: string;
   birthDate?: string;
   idNumber?: string;
@@ -46,6 +47,7 @@ export interface ParticipantDraft {
   planId?: string;
   salonIds?: string[];
   linkedUid?: string | null;
+  accountEmail?: string;
 }
 
 export interface SalonDraft {
@@ -85,6 +87,7 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
     emergencyContactRelationship: draft.emergencyContactRelationship || null,
     salonIds: draft.salonIds || [],
     position: draft.position || null,
+    accountEmail: draft.accountEmail || null,
   });
 
   await syncProfileSalons(organizationId, ref.id, draft.salonIds || []);
@@ -112,6 +115,10 @@ async function syncProfileSalons(organizationId: string, profileId: string, salo
 
 export async function removeProfile(organizationId: string, profileId: string) {
   await deleteDoc(doc(db, "organizations", organizationId, "profiles", profileId));
+}
+
+export async function updateProfileAccountEmail(organizationId: string, profileId: string, accountEmail: string) {
+  await updateDoc(doc(db, "organizations", organizationId, "profiles", profileId), { accountEmail });
 }
 
 // Perfil propio de un editor/profesional (para saber qué salones tiene asignados). No requiere rol admin:
@@ -174,6 +181,7 @@ export async function saveParticipant(organizationId: string, draft: Participant
     planId: draft.planId || null,
     salonIds: draft.salonIds || [],
     linkedUid: draft.linkedUid || null,
+    accountEmail: draft.accountEmail || null,
   });
 
   await syncParticipantSalons(organizationId, ref.id, draft.salonIds || []);
@@ -201,6 +209,10 @@ async function syncParticipantSalons(organizationId: string, participantId: stri
 
 export async function removeParticipant(organizationId: string, participantId: string) {
   await deleteDoc(doc(db, "organizations", organizationId, "people", participantId));
+}
+
+export async function updateParticipantAccountEmail(organizationId: string, participantId: string, accountEmail: string) {
+  await updateDoc(doc(db, "organizations", organizationId, "people", participantId), { accountEmail });
 }
 
 export function listenSalons(organizationId: string, onChange: (items: Salon[]) => void) {
