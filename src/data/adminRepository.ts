@@ -176,7 +176,27 @@ export async function saveParticipant(organizationId: string, draft: Participant
     linkedUid: draft.linkedUid || null,
   });
 
+  await syncParticipantSalons(organizationId, ref.id, draft.salonIds || []);
+
   return ref.id;
+}
+
+// Mantiene salon.participantIds en sincronía con los salones seleccionados desde el participante.
+async function syncParticipantSalons(organizationId: string, participantId: string, salonIds: string[]) {
+  const snapshot = await getDocs(collection(db, "organizations", organizationId, "salons"));
+  const updates: Promise<void>[] = [];
+  snapshot.forEach((docSnap) => {
+    const salon = docSnap.data() as Salon;
+    const currentIds = salon.participantIds || [];
+    const shouldHave = salonIds.includes(docSnap.id);
+    const has = currentIds.includes(participantId);
+    if (shouldHave && !has) {
+      updates.push(updateDoc(docSnap.ref, { participantIds: [...currentIds, participantId] }));
+    } else if (!shouldHave && has) {
+      updates.push(updateDoc(docSnap.ref, { participantIds: currentIds.filter((pid) => pid !== participantId) }));
+    }
+  });
+  await Promise.all(updates);
 }
 
 export async function removeParticipant(organizationId: string, participantId: string) {
