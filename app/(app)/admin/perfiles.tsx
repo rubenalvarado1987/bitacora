@@ -217,7 +217,7 @@ export default function AdminProfilesScreen() {
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Perfiles" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
-        <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre visible" style={styles.input} />
+        <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre Completo" style={styles.input} />
         <TextInput value={draft.username} onChangeText={(value) => setDraft({ ...draft, username: value })} placeholder="Usuario" style={styles.input} />
         <TextInput value={draft.nationality ?? ""} onChangeText={(value) => setDraft({ ...draft, nationality: value })} placeholder="Nacionalidad" style={styles.input} />
 

@@ -207,9 +207,12 @@ export default function SalonsScreen() {
           <Text style={styles.listTitle}>{salon.name}</Text>
           <Text style={styles.listBody}>Profesionales: {salon.professionalIds.length} · Participantes: {salon.participantIds.length}</Text>
           <Text style={styles.listBody}>
-            {salon.schedule && salon.schedule.length > 0
-              ? salon.schedule.map((s) => `${labelForSchedule(s.type)} ${s.startTime}-${s.endTime}`).join(" · ")
-              : "Sin jornada"}
+            {(() => {
+              const schedule = normalizeSchedule(salon.schedule);
+              return schedule.length > 0
+                ? schedule.map((s) => `${labelForSchedule(s.type)} ${s.startTime}-${s.endTime}`).join(" · ")
+                : "Sin jornada";
+            })()}
             {salon.maxCapacity ? ` · Capacidad: ${salon.maxCapacity}` : ""}
           </Text>
           <Text style={styles.listBody}>
