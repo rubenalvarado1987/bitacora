@@ -16,10 +16,12 @@ import {
   listenThread,
   markThreadRead,
   sendMessage,
+  updateThreadMembers,
 } from "../../../src/data/chatRepository";
 import { listenParticipants, listenProfiles } from "../../../src/data/adminRepository";
 import { colors, radius, spacing } from "../../../src/theme";
 import { ChatMessage, ChatThread, Person, ProfileRecord } from "../../../src/types";
+import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 
 export default function ChatThreadScreen() {
@@ -33,6 +35,8 @@ export default function ChatThreadScreen() {
   const [participants, setParticipants] = useState<Person[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
 
   useEffect(() => {
     if (!membership?.organizationId || !threadId) return;
@@ -76,6 +80,66 @@ export default function ChatThreadScreen() {
     return map;
   }, [profiles, participants]);
 
+  const canManageMembers = membership?.role === "admin" || membership?.role === "editor" || membership?.role === "profesional";
+
+  // el id del campo "apoderado" varía según la plantilla de rubro y datos antiguos de demo
+  const guardianName = (p: Person) =>
+    String(
+      p.baseData?.apoderado_principal ??
+        p.baseData?.nombre_apoderado ??
+        p.baseData?.apoderado ??
+        p.baseData?.contacto_emergencia_nombre ??
+        ""
+    ).trim();
+
+  const memberOptions = useMemo(() => {
+    const fromProfiles = profiles
+      .filter((p) => p.linkedUid)
+      .map((p) => ({ uid: p.linkedUid as string, label: p.displayName, searchText: p.displayName.toLowerCase() }));
+    const fromParticipants = participants
+      .filter((p) => p.linkedUid)
+      .map((p) => {
+        const guardian = guardianName(p);
+        return {
+          uid: p.linkedUid as string,
+          label: guardian ? `${p.name} (${guardian})` : p.name,
+          searchText: `${p.name} ${guardian}`.toLowerCase(),
+        };
+      });
+    return [...fromProfiles, ...fromParticipants];
+  }, [profiles, participants]);
+
+  const memberSearchResults = useMemo(() => {
+    const term = memberSearch.trim().toLowerCase();
+    if (!term || !thread) return [];
+    return memberOptions
+      .filter((m) => !thread.memberIds.includes(m.uid) && m.searchText.includes(term))
+      .slice(0, 6);
+  }, [memberOptions, memberSearch, thread]);
+
+  const handleAddMember = async (uid: string) => {
+    if (!membership?.organizationId || !threadId || !thread) return;
+    try {
+      await updateThreadMembers(membership.organizationId, threadId, [...thread.memberIds, uid]);
+      setMemberSearch("");
+    } catch (e: any) {
+      showAlert("No se pudo agregar", e?.message ?? "Intenta de nuevo.");
+    }
+  };
+
+  const handleRemoveMember = async (uid: string) => {
+    if (!membership?.organizationId || !threadId || !thread) return;
+    try {
+      await updateThreadMembers(
+        membership.organizationId,
+        threadId,
+        thread.memberIds.filter((id) => id !== uid)
+      );
+    } catch (e: any) {
+      showAlert("No se pudo quitar", e?.message ?? "Intenta de nuevo.");
+    }
+  };
+
   const handleSend = async () => {
     if (!membership?.organizationId || !user || !text.trim() || !threadId) return;
     setSending(true);
@@ -108,13 +172,45 @@ export default function ChatThreadScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat", href: "/chat" }, { label: thread?.title ?? "Chat" }]} />
 
-      {thread && thread.memberIds.length > 0 ? (
+      {thread ? (
         <View style={styles.membersRow}>
           {thread.memberIds.map((uid) => (
             <View key={uid} style={styles.memberChip}>
               <Text style={styles.memberChipText}>{memberLabels.get(uid) ?? "Miembro"}</Text>
+              {canManageMembers ? (
+                <Pressable onPress={() => handleRemoveMember(uid)} hitSlop={8}>
+                  <Text style={styles.memberChipRemove}>×</Text>
+                </Pressable>
+              ) : null}
             </View>
           ))}
+          {canManageMembers ? (
+            <Pressable onPress={() => setShowAddMember((v) => !v)} style={styles.addMemberButton}>
+              <Text style={styles.addMemberButtonText}>+ Agregar</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {canManageMembers && showAddMember ? (
+        <View style={styles.addMemberBox}>
+          <TextInput
+            value={memberSearch}
+            onChangeText={setMemberSearch}
+            placeholder="Buscar profesional, participante o apoderado"
+            style={styles.addMemberInput}
+          />
+          {memberSearchResults.length > 0 ? (
+            <View style={styles.searchResults}>
+              {memberSearchResults.map((opt) => (
+                <Pressable key={opt.uid} onPress={() => handleAddMember(opt.uid)} style={styles.searchResultRow}>
+                  <Text style={styles.searchResultText}>{opt.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : memberSearch.trim().length > 0 ? (
+            <Text style={styles.searchEmpty}>Sin resultados.</Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -235,8 +331,49 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   memberChipText: { fontSize: 11, color: colors.tealDark, fontWeight: "600" },
+  memberChipRemove: { fontSize: 13, color: colors.tealDark, fontWeight: "700" },
+  addMemberButton: {
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.teal,
+  },
+  addMemberButtonText: { fontSize: 11, color: colors.teal, fontWeight: "700" },
+  addMemberBox: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  addMemberInput: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 14,
+    backgroundColor: colors.card,
+  },
+  searchResults: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    marginTop: spacing.xs,
+    backgroundColor: colors.card,
+    overflow: "hidden",
+  },
+  searchResultRow: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  searchResultText: { fontSize: 13, color: colors.ink },
+  searchEmpty: { fontSize: 12, color: colors.slate, marginTop: spacing.xs },
   inputBar: {
     flexDirection: "row",
     padding: spacing.md,

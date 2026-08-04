@@ -101,9 +101,13 @@ service cloud.firestore {
             || request.auth.uid in resource.data.memberIds);
         allow create: if request.auth != null && esMiembro(orgId)
           && miRol(orgId) in ['admin', 'editor', 'profesional'];
-        // Un admin edita todo; un miembro del hilo solo puede tocar su propia marca de lectura (readBy).
+        // Un admin edita todo; un editor/profesional miembro puede agregar/quitar miembros;
+        // cualquier miembro puede tocar solo su propia marca de lectura (readBy).
         allow update: if request.auth != null && esMiembro(orgId)
           && (miRol(orgId) == 'admin'
+            || (miRol(orgId) in ['editor', 'profesional']
+              && request.auth.uid in resource.data.memberIds
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds']))
             || (request.auth.uid in resource.data.memberIds
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])));
         allow delete: if request.auth != null && esMiembro(orgId) && miRol(orgId) == 'admin';

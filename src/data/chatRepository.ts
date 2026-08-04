@@ -67,6 +67,11 @@ export async function markThreadRead(organizationId: string, threadId: string, u
   await updateDoc(ref, { [`readBy.${uid}`]: serverTimestamp() });
 }
 
+export async function updateThreadMembers(organizationId: string, threadId: string, memberIds: string[]) {
+  const ref = doc(db, "organizations", organizationId, "chatThreads", threadId);
+  await updateDoc(ref, { memberIds });
+}
+
 export function listenMessages(
   organizationId: string,
   threadId: string,
