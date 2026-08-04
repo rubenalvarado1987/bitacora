@@ -7,10 +7,10 @@ import Breadcrumb from "../../../src/components/Breadcrumb";
 
 const cards = [
   { href: "/admin/dashboard", title: "Dashboard", body: "Resumen operativo: participantes, salones y agenda del día." },
+  { href: "/admin/salones", title: "Salones", body: "Crear salones y asignar participantes y profesionales." },
+  { href: "/admin/planes", title: "Planes económicos", body: "Registrar planes y asociarlos a participantes." },
   { href: "/admin/perfiles", title: "Perfiles", body: "Crear y editar Editor, Lector y perfiles participantes." },
   { href: "/admin/participantes", title: "Participantes", body: "Alta, edición y ficha técnica del participante." },
-  { href: "/admin/planes", title: "Planes económicos", body: "Registrar planes y asociarlos a participantes." },
-  { href: "/admin/salones", title: "Salones", body: "Crear salones y asignar participantes y profesionales." },
 ];
 
 export default function AdminHubScreen() {
