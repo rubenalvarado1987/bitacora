@@ -8,7 +8,7 @@ import { colors, radius, spacing } from "../../src/theme";
 import Breadcrumb from "../../src/components/Breadcrumb";
 
 export default function HomeScreen() {
-  const { membership, signOut } = useAuth();
+  const { membership, organization, signOut } = useAuth();
   const router = useRouter();
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [participants, setParticipants] = useState<Person[]>([]);
@@ -49,7 +49,7 @@ export default function HomeScreen() {
         <Text style={styles.kicker}>Bitácora App</Text>
         <Text style={styles.title}>Bienvenido de vuelta.</Text>
         <Text style={styles.subtitle}>
-          Organización: {membership?.organizationId ?? "sin organización"} · Rol: {membership?.role ?? "sin rol"}
+          Organización: {organization?.name ?? membership?.organizationId ?? "sin organización"} · Rol: {membership?.role ?? "sin rol"}
         </Text>
 
         <View style={styles.heroActions}>

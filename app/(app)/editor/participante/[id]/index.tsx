@@ -5,9 +5,10 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../../src/firebase";
 import { useAuth } from "../../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../../src/data/entriesRepository";
+import { listenMyProfile } from "../../../../../src/data/adminRepository";
 import { EntryCard } from "../../../../../src/components/EntryCard";
 import { colors, radius, spacing } from "../../../../../src/theme";
-import { Entry, Person } from "../../../../../src/types";
+import { Entry, Person, ProfileRecord } from "../../../../../src/types";
 import Breadcrumb from "../../../../../src/components/Breadcrumb";
 
 export default function EditorParticipantScreen() {
@@ -15,29 +16,51 @@ export default function EditorParticipantScreen() {
   const { membership } = useAuth();
   const router = useRouter();
   const [person, setPerson] = useState<Person | null>(null);
+  const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!membership?.organizationId || !id) return;
+    if (!membership?.organizationId || !membership.uid) return;
+    return listenMyProfile(membership.organizationId, membership.uid, setMyProfile);
+  }, [membership?.organizationId, membership?.uid]);
+
+  useEffect(() => {
+    if (!membership?.organizationId || !id || !myProfile) return;
     (async () => {
       const snap = await getDoc(
         doc(db, "organizations", membership.organizationId, "people", id)
       );
-      if (snap.exists()) setPerson({ id: snap.id, ...snap.data() } as Person);
+      if (snap.exists()) {
+        const data = { id: snap.id, ...snap.data() } as Person;
+        // Un profesional solo puede ver participantes de sus propios salones asignados.
+        const mySalonIds = new Set(myProfile.salonIds ?? []);
+        const belongsToMySalon = (data.salonIds ?? []).some((sid) => mySalonIds.has(sid));
+        if (belongsToMySalon) setPerson(data);
+      }
       setLoading(false);
     })();
-  }, [membership?.organizationId, id]);
+  }, [membership?.organizationId, id, myProfile]);
 
   useEffect(() => {
-    if (!membership?.organizationId || !id) return;
+    if (!membership?.organizationId || !id || !person) return;
     return listenEntries(membership.organizationId, id, setEntries);
-  }, [membership?.organizationId, id]);
+  }, [membership?.organizationId, id, person]);
 
   if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.teal} />
+      </View>
+    );
+  }
+
+  if (!person) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }]} />
+        <Text style={styles.empty}>No tienes acceso a este participante.</Text>
       </View>
     );
   }

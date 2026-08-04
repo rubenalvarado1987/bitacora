@@ -110,17 +110,20 @@ export default function ChatIndexScreen() {
   }, [membership?.organizationId, user?.uid, role]);
 
   const handleCreate = async () => {
-    if (!membership?.organizationId) return;
+    if (!membership?.organizationId || !user) return;
     if (!draft.title.trim()) {
       showAlert("Faltan datos", "Ingresa un título para el hilo.");
       return;
     }
     try {
-      await createThread(membership.organizationId, { ...draft, memberIds: selectedMembers.map((m) => m.uid) });
+      // El creador debe quedar como miembro, si no queda sin acceso de lectura al hilo que acaba de crear.
+      const memberIds = Array.from(new Set([...selectedMembers.map((m) => m.uid), user.uid]));
+      const threadId = await createThread(membership.organizationId, { ...draft, memberIds });
       setDraft({ title: "", scope: "global", memberIds: [] });
       setSelectedMembers([]);
       setMemberSearch("");
       setShowForm(false);
+      router.push(`/chat/${threadId}` as any);
     } catch (e: any) {
       showAlert("No se pudo crear", e?.message ?? "Intenta de nuevo.");
     }

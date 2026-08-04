@@ -9,11 +9,13 @@ import {
 } from "firebase/auth";
 import { collection, collectionGroup, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { Membership } from "../types";
+import { Membership, Organization } from "../types";
+import { listenOrganization } from "../data/organizationSetup";
 
 interface AuthContextValue {
   user: User | null;
   membership: Membership | null;
+  organization: Organization | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshMembership = async (knownOrganizationId?: string) => {
@@ -139,6 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!membership?.organizationId) {
+      setOrganization(null);
+      return;
+    }
+    return listenOrganization(membership.organizationId, setOrganization);
+  }, [membership?.organizationId]);
+
   const signIn = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
   };
@@ -155,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, membership, loading, signIn, signUp, signOut, refreshMembership }}>
+    <AuthContext.Provider value={{ user, membership, organization, loading, signIn, signUp, signOut, refreshMembership }}>
       {children}
     </AuthContext.Provider>
   );

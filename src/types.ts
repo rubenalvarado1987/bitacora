@@ -106,6 +106,7 @@ export interface Organization {
   createdBy?: string;
   setupCompleted?: boolean;
   modules?: string[];
+  logoUrl?: string;
 }
 
 export interface EconomicPlan {

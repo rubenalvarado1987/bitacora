@@ -113,7 +113,9 @@ service cloud.firestore {
             && (miRol(orgId) == 'admin'
               || request.auth.uid in get(/databases/$(database)/documents/organizations/$(orgId)/chatThreads/$(threadId)).data.memberIds);
           allow create: if request.auth != null && esMiembro(orgId)
-            && request.resource.data.authorUid == request.auth.uid;
+            && request.resource.data.authorUid == request.auth.uid
+            && (miRol(orgId) == 'admin'
+              || request.auth.uid in get(/databases/$(database)/documents/organizations/$(orgId)/chatThreads/$(threadId)).data.memberIds);
           allow update, delete: if false;
         }
       }

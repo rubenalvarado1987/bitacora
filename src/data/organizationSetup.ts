@@ -1,6 +1,6 @@
-import { collection, doc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import { BusinessCategoryId } from "../types";
+import { BusinessCategoryId, Organization } from "../types";
 import { buildStarterTemplate, getBusinessCategory } from "./businessCatalog";
 
 export async function createOrganizationFromWizard(params: {
@@ -47,4 +47,25 @@ export async function createOrganizationFromWizard(params: {
     organizationId: organizationRef.id,
     templateId,
   };
+}
+
+export function listenOrganization(organizationId: string, onChange: (org: Organization | null) => void) {
+  return onSnapshot(doc(db, "organizations", organizationId), (snap) => {
+    onChange(snap.exists() ? ({ id: snap.id, ...snap.data() } as Organization) : null);
+  });
+}
+
+export async function getOrganization(organizationId: string): Promise<Organization | null> {
+  const snap = await getDoc(doc(db, "organizations", organizationId));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Organization) : null;
+}
+
+export async function updateOrganizationBranding(
+  organizationId: string,
+  data: { name?: string; logoUrl?: string }
+) {
+  await updateDoc(doc(db, "organizations", organizationId), {
+    ...(data.name !== undefined ? { name: data.name } : {}),
+    ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl || null } : {}),
+  });
 }

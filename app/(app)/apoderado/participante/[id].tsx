@@ -23,20 +23,36 @@ export default function ApoderadoParticipantScreen() {
       const snap = await getDoc(
         doc(db, "organizations", membership.organizationId, "people", id)
       );
-      if (snap.exists()) setPerson({ id: snap.id, ...snap.data() } as Person);
+      if (snap.exists()) {
+        const data = { id: snap.id, ...snap.data() } as Person;
+        // Un apoderado solo puede ver la ficha de su propio hijo/a vinculado.
+        if (data.linkedUid && data.linkedUid === membership.uid) {
+          setPerson(data);
+        }
+      }
       setLoading(false);
     })();
-  }, [membership?.organizationId, id]);
+  }, [membership?.organizationId, membership?.uid, id]);
 
   useEffect(() => {
-    if (!membership?.organizationId || !id) return;
+    if (!membership?.organizationId || !id || !person) return;
     return listenEntries(membership.organizationId, id, setEntries);
-  }, [membership?.organizationId, id]);
+  }, [membership?.organizationId, id, person]);
 
   if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.teal} />
+      </View>
+    );
+  }
+
+  if (!person) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/apoderado" }]} />
+        <Text style={styles.empty}>No tienes acceso a este participante.</Text>
       </View>
     );
   }

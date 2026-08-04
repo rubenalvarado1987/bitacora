@@ -14,13 +14,13 @@ export default function ApoderadoPanelScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!membership?.organizationId) return;
+    if (!membership?.organizationId || !membership.uid) return;
     const unsub = listenParticipants(membership.organizationId, (items) => {
-      setParticipants(items);
+      setParticipants(items.filter((p) => p.linkedUid && p.linkedUid === membership.uid));
       setLoading(false);
     });
     return unsub;
-  }, [membership?.organizationId]);
+  }, [membership?.organizationId, membership?.uid]);
 
   return (
     <View style={styles.container}>

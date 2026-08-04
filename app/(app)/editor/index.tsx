@@ -1,26 +1,39 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
-import { listenParticipants } from "../../../src/data/adminRepository";
+import { listenMyProfile, listenParticipants } from "../../../src/data/adminRepository";
 import { colors, radius, spacing } from "../../../src/theme";
-import { Person } from "../../../src/types";
+import { Person, ProfileRecord } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 
 export default function EditorPanelScreen() {
   const { membership } = useAuth();
   const router = useRouter();
-  const [participants, setParticipants] = useState<Person[]>([]);
+  const [allParticipants, setAllParticipants] = useState<Person[]>([]);
+  const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!membership?.organizationId) return;
     const unsub = listenParticipants(membership.organizationId, (items) => {
-      setParticipants(items);
+      setAllParticipants(items);
       setLoading(false);
     });
     return unsub;
   }, [membership?.organizationId]);
+
+  useEffect(() => {
+    if (!membership?.organizationId || !membership.uid) return;
+    return listenMyProfile(membership.organizationId, membership.uid, setMyProfile);
+  }, [membership?.organizationId, membership?.uid]);
+
+  // Un profesional solo ve a los participantes de los salones que tiene asignados.
+  const participants = useMemo(() => {
+    const mySalonIds = new Set(myProfile?.salonIds ?? []);
+    if (mySalonIds.size === 0) return [];
+    return allParticipants.filter((p) => (p.salonIds ?? []).some((id) => mySalonIds.has(id)));
+  }, [allParticipants, myProfile]);
 
   return (
     <View style={styles.container}>
