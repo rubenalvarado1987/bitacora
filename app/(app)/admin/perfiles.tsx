@@ -26,6 +26,10 @@ const RELATIONSHIP_OPTIONS = [
   { value: "Madrastra", label: "Madrastra" },
   { value: "Tutor/a legal", label: "Tutor/a legal" },
   { value: "Apoderado/a (sin parentesco biológico)", label: "Apoderado/a (sin parentesco biológico)" },
+  { value: "Pareja", label: "Pareja" },
+  { value: "Cónyuge", label: "Cónyuge" },
+  { value: "Abuela", label: "Abuela" },
+  { value: "Abuelo", label: "Abuelo" },
 ] as const;
 
 const emptyDraft: ProfileDraft = {

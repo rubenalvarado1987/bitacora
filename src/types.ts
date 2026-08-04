@@ -71,7 +71,7 @@ export interface Membership {
   name?: string;
 }
 
-export type EmergencyContactRelationship = "Padre" | "Madre" | "Padrastro" | "Madrastra" | "Tutor/a legal" | "Apoderado/a (sin parentesco biológico)";
+export type EmergencyContactRelationship = "Padre" | "Madre" | "Padrastro" | "Madrastra" | "Tutor/a legal" | "Apoderado/a (sin parentesco biológico)" | "Pareja" | "Cónyuge" | "Abuela" | "Abuelo";
 
 export interface ProfileRecord {
   id: string;
