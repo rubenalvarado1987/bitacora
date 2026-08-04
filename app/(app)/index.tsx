@@ -31,11 +31,10 @@ export default function HomeScreen() {
 
   const setupSteps = useMemo(
     () => [
-      { key: "perfiles", label: "Perfiles creados", done: profiles.length > 0, href: "/admin/perfiles" },
-      { key: "profesionales", label: "Profesionales asignados", done: profiles.some((p) => p.role === "editor"), href: "/admin/perfiles" },
-      { key: "participantes", label: "Participantes registrados", done: participants.length > 0, href: "/admin/participantes" },
-      { key: "salones", label: "Salones creados", done: salons.length > 0, href: "/admin/salones" },
-      { key: "planes", label: "Planes económicos creados", done: plans.length > 0, href: "/admin/planes" },
+      { key: "salones", label: "Salones", done: salons.length > 0, href: "/admin/salones" },
+      { key: "planes", label: "Planes económicos", done: plans.length > 0, href: "/admin/planes" },
+      { key: "profesionales", label: "Profesionales", done: profiles.some((p) => p.role === "editor"), href: "/admin/perfiles" },
+      { key: "participantes", label: "Participantes", done: participants.length > 0, href: "/admin/participantes" },
     ],
     [profiles, participants, salons, plans]
   );
