@@ -4,6 +4,7 @@ import { TemplateField } from "../types";
 import { colors, radius, spacing } from "../theme";
 import DateField from "./DateField";
 import DropdownSelect from "./DropdownSelect";
+import { formatRut, isRutField, isValidRut } from "../utils/rut";
 
 // Fila de solo lectura, usada para mostrar los datos base de una ficha.
 export function FieldDisplay({ label, value }: { label: string; value: string | number | boolean | undefined }) {
@@ -28,6 +29,10 @@ export function FieldInput({
   value: string | number | undefined;
   onChange: (value: string | number) => void;
 }) {
+  const isRut = field.type === "text" && isRutField(field.id || field.label);
+  const rutValue = value !== undefined ? String(value) : "";
+  const rutInvalid = isRut && rutValue.trim().length > 0 && !isValidRut(rutValue);
+
   return (
     <View style={styles.inputBlock}>
       <Text style={styles.inputLabel}>
@@ -35,7 +40,18 @@ export function FieldInput({
         {field.required ? " *" : ""}
       </Text>
 
-      {(field.type === "text" || field.type === "time") && (
+      {isRut && (
+        <TextInput
+          style={[styles.textInput, rutInvalid && styles.textInputError]}
+          value={rutValue}
+          onChangeText={(text) => onChange(formatRut(text))}
+          placeholder="12.345.678-9"
+          placeholderTextColor={colors.slate}
+          autoCapitalize="characters"
+        />
+      )}
+
+      {!isRut && (field.type === "text" || field.type === "time") && (
         <TextInput
           style={styles.textInput}
           value={value !== undefined ? String(value) : ""}
@@ -44,6 +60,8 @@ export function FieldInput({
           placeholderTextColor={colors.slate}
         />
       )}
+
+      {isRut && rutInvalid && <Text style={styles.errorText}>RUT inválido</Text>}
 
       {field.type === "date" && (
         <DateField
@@ -127,6 +145,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
     backgroundColor: colors.card,
   },
+  textInputError: { borderColor: colors.danger },
+  errorText: { fontSize: 11, color: colors.danger, marginTop: spacing.xs },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   chip: {
     borderWidth: 1,
