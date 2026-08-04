@@ -170,7 +170,9 @@ export default function ChatThreadScreen() {
       keyboardVerticalOffset={90}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat", href: "/chat" }, { label: thread?.title ?? "Chat" }]} />
+      <View style={styles.header}>
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat", href: "/chat" }, { label: thread?.title ?? "Chat" }]} />
+      </View>
 
       {thread ? (
         <View style={styles.membersRow}>
@@ -289,6 +291,7 @@ function getReadReceipt(thread: ChatThread | null, message: ChatMessage, myUid?:
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   messageList: { padding: spacing.md, paddingBottom: spacing.lg },
   bubble: {
     maxWidth: "80%",

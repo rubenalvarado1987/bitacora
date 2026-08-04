@@ -160,7 +160,9 @@ export default function ChatIndexScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat" }]} />
+      <View style={styles.header}>
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat" }]} />
+      </View>
 
       {showForm && canCreate ? (
         <View style={styles.formCard}>
@@ -298,6 +300,7 @@ export default function ChatIndexScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   list: { padding: spacing.lg },
   formCard: {
     backgroundColor: colors.card,
