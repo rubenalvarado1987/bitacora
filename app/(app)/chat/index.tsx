@@ -64,11 +64,16 @@ export default function ChatIndexScreen() {
 
   const selectedUids = useMemo(() => new Set(selectedMembers.map((m) => m.uid)), [selectedMembers]);
 
+  const professionalOptions = useMemo(
+    () => memberOptions.filter((m) => m.kind === "profesional" && !selectedUids.has(m.uid)),
+    [memberOptions, selectedUids]
+  );
+
   const searchResults = useMemo(() => {
     const term = memberSearch.trim().toLowerCase();
     if (!term) return [];
     return memberOptions
-      .filter((m) => !selectedUids.has(m.uid) && m.label.toLowerCase().includes(term))
+      .filter((m) => m.kind === "participante" && !selectedUids.has(m.uid) && m.label.toLowerCase().includes(term))
       .slice(0, 6);
   }, [memberOptions, memberSearch, selectedUids]);
 
@@ -127,10 +132,25 @@ export default function ChatIndexScreen() {
               </Pressable>
             ))}
           </View>
+          <Text style={styles.fieldLabel}>Profesionales</Text>
+          {professionalOptions.length > 0 ? (
+            <View style={styles.searchResults}>
+              {professionalOptions.map((opt) => (
+                <Pressable key={opt.uid} onPress={() => addMember(opt)} style={styles.searchResultRow}>
+                  <Text style={styles.searchResultText}>{opt.label}</Text>
+                  <Text style={styles.searchResultKind}>Profesional</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.searchEmpty}>No hay profesionales disponibles.</Text>
+          )}
+
+          <Text style={styles.fieldLabel}>Participantes y/o apoderados</Text>
           <TextInput
             value={memberSearch}
             onChangeText={setMemberSearch}
-            placeholder="Buscar profesional o participante"
+            placeholder="Buscar participante o apoderado"
             style={styles.input}
           />
           {searchResults.length > 0 ? (
@@ -138,7 +158,7 @@ export default function ChatIndexScreen() {
               {searchResults.map((opt) => (
                 <Pressable key={opt.uid} onPress={() => addMember(opt)} style={styles.searchResultRow}>
                   <Text style={styles.searchResultText}>{opt.label}</Text>
-                  <Text style={styles.searchResultKind}>{opt.kind === "profesional" ? "Profesional" : "Participante"}</Text>
+                  <Text style={styles.searchResultKind}>Participante</Text>
                 </Pressable>
               ))}
             </View>
@@ -217,6 +237,7 @@ const styles = StyleSheet.create({
   searchResultRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line },
   searchResultText: { fontSize: 13, color: colors.ink, fontWeight: "600", flexShrink: 1 },
   searchResultKind: { fontSize: 11, color: colors.slate },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs, marginTop: spacing.xs },
   searchEmpty: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
   memberChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
   memberChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.tealTint, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 10, maxWidth: 200 },
