@@ -52,8 +52,15 @@ export default function ChatIndexScreen() {
     };
   }, [membership?.organizationId]);
 
+  // el id del campo "apoderado" varía según la plantilla de rubro y datos antiguos de demo
   const guardianName = (p: Person) =>
-    String(p.baseData?.apoderado_principal ?? p.baseData?.nombre_apoderado ?? "").trim();
+    String(
+      p.baseData?.apoderado_principal ??
+        p.baseData?.nombre_apoderado ??
+        p.baseData?.apoderado ??
+        p.baseData?.contacto_emergencia_nombre ??
+        ""
+    ).trim();
 
   const memberOptions = useMemo<(MemberOption & { searchText: string })[]>(() => {
     const fromProfiles = profiles
