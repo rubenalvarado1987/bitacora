@@ -136,7 +136,7 @@ export default function ChatIndexScreen() {
           <TextInput
             value={draft.title}
             onChangeText={(v) => setDraft({ ...draft, title: v })}
-            placeholder="Título del hilo"
+            placeholder="Título del Chat"
             style={styles.input}
           />
           <View style={styles.scopeRow}>
