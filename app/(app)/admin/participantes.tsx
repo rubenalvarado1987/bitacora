@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Stack } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../src/firebase";
@@ -23,6 +24,7 @@ import {
 } from "../../../src/data/adminRepository";
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
+import { isR2Configured, uploadParticipantPhoto } from "../../../src/data/r2Repository";
 
 const PARENTESCO_OPTIONS = [
   "Padre",
@@ -44,6 +46,7 @@ const emptyDraft: ParticipantDraft = {
   salonIds: [],
   linkedUid: "",
   accountEmail: "",
+  photoUrl: "",
 };
 
 export default function ParticipantsScreen() {
@@ -60,6 +63,7 @@ export default function ParticipantsScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [updatingAccount, setUpdatingAccount] = useState(false);
@@ -127,6 +131,32 @@ export default function ParticipantsScreen() {
 
   const removeSalonFromDraft = (salonId: string) => {
     setDraft((prev) => ({ ...prev, salonIds: (prev.salonIds ?? []).filter((id) => id !== salonId) }));
+  };
+
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showAlert("Permiso requerido", "Necesitamos acceso a tu biblioteca de fotos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setUploadingPhoto(true);
+    try {
+      const tempId = editingId ?? `temp_${Date.now()}`;
+      const url = await uploadParticipantPhoto(uri, tempId);
+      setDraft((prev) => ({ ...prev, photoUrl: url }));
+    } catch (e: any) {
+      showAlert("Error al subir foto", e?.message ?? "Intenta de nuevo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const selectedPlan = useMemo(() => plans.find((p) => p.id === draft.planId), [plans, draft.planId]);
@@ -260,6 +290,7 @@ export default function ParticipantsScreen() {
       salonIds: item.salonIds ?? [],
       linkedUid: item.linkedUid ?? "",
       accountEmail: item.accountEmail ?? "",
+      photoUrl: item.photoUrl ?? "",
     });
     setEmail("");
     setPassword("");
@@ -279,6 +310,24 @@ export default function ParticipantsScreen() {
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Participantes" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
+
+        {isR2Configured() ? (
+          <View style={styles.photoRow}>
+            {draft.photoUrl ? (
+              <Image source={{ uri: draft.photoUrl }} style={styles.photoPreview} />
+            ) : (
+              <View style={[styles.photoPreview, styles.photoPlaceholder]}>
+                <Text style={styles.photoPlaceholderText}>Sin foto</Text>
+              </View>
+            )}
+            <Pressable onPress={handlePickPhoto} style={styles.photoButton} disabled={uploadingPhoto}>
+              {uploadingPhoto
+                ? <ActivityIndicator size="small" color={colors.teal} />
+                : <Text style={styles.photoButtonText}>{draft.photoUrl ? "Cambiar foto" : "Subir foto"}</Text>}
+            </Pressable>
+          </View>
+        ) : null}
+
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre completo" style={styles.input} />
 
         <Text style={styles.fieldLabel}>Plan</Text>
@@ -481,6 +530,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
+  photoPreview: { width: 72, height: 72, borderRadius: 36 },
+  photoPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
+  photoPlaceholderText: { fontSize: 11, color: colors.slate },
+  photoButton: { borderWidth: 1, borderColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: spacing.md, minWidth: 100, alignItems: "center" },
+  photoButtonText: { fontSize: 13, color: colors.teal, fontWeight: "600" },
   fichaSection: { marginBottom: spacing.md },
   fichaSectionTitle: { fontSize: 12, fontWeight: "700", color: colors.tealDark, textTransform: "uppercase", marginBottom: spacing.sm },
   fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs },

@@ -53,6 +53,7 @@ export interface Person {
   salonIds?: string[];
   linkedUid?: string | null;
   accountEmail?: string;
+  photoUrl?: string | null;
 }
 
 export interface Entry {

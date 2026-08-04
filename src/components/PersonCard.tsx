@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Person } from "../types";
 import { colors, radius, spacing } from "../theme";
 
@@ -7,7 +7,11 @@ export function PersonCard({ person, onPress }: { person: Person; onPress: () =>
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials(person.name)}</Text>
+        {person.photoUrl ? (
+          <Image source={{ uri: person.photoUrl }} style={styles.avatarImage} />
+        ) : (
+          <Text style={styles.avatarText}>{initials(person.name)}</Text>
+        )}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.name}>{person.name}</Text>
@@ -46,7 +50,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tealTint,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  avatarImage: { width: 40, height: 40 },
   avatarText: { color: colors.tealDark, fontWeight: "600" },
   name: { fontSize: 15, fontWeight: "600", color: colors.ink },
   status: { fontSize: 12, color: colors.slate, marginTop: 2 },

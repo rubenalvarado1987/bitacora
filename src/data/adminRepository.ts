@@ -48,6 +48,7 @@ export interface ParticipantDraft {
   salonIds?: string[];
   linkedUid?: string | null;
   accountEmail?: string;
+  photoUrl?: string | null;
 }
 
 export interface SalonDraft {
@@ -182,6 +183,7 @@ export async function saveParticipant(organizationId: string, draft: Participant
     salonIds: draft.salonIds || [],
     linkedUid: draft.linkedUid || null,
     accountEmail: draft.accountEmail || null,
+    photoUrl: draft.photoUrl || null,
   });
 
   await syncParticipantSalons(organizationId, ref.id, draft.salonIds || []);
