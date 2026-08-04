@@ -3,8 +3,9 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
-import { Salon } from "../../../src/types";
+import { Salon, SalonSchedule, SalonScheduleEntry } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
+import TimeField from "../../../src/components/TimeField";
 import { SalonDraft, listenSalons, removeSalon, saveSalon } from "../../../src/data/adminRepository";
 import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { showAlert } from "../../../src/utils/alert";
@@ -29,7 +30,7 @@ const emptyDraft: SalonDraft = {
   active: true,
   professionalIds: [],
   participantIds: [],
-  schedule: "",
+  schedule: [],
   maxCapacity: "",
   educationalLevel: "",
 };
@@ -58,6 +59,16 @@ export default function SalonsScreen() {
       showAlert("Faltan datos", "Completa el nombre del salón.");
       return;
     }
+    for (const entry of draft.schedule ?? []) {
+      if (!entry.startTime || !entry.endTime) {
+        showAlert("Horario incompleto", `Completa inicio y término para la jornada ${labelForSchedule(entry.type)}.`);
+        return;
+      }
+      if (entry.endTime <= entry.startTime) {
+        showAlert("Horario inválido", `La hora de término debe ser posterior a la de inicio en ${labelForSchedule(entry.type)}.`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       await saveSalon(membership.organizationId, draft, editingId ?? undefined);
@@ -72,12 +83,13 @@ export default function SalonsScreen() {
 
   const startEdit = (salon: Salon) => {
     setEditingId(salon.id);
+    const schedule = normalizeSchedule(salon.schedule);
     setDraft({
       name: salon.name,
       active: salon.active,
       professionalIds: salon.professionalIds,
       participantIds: salon.participantIds,
-      schedule: salon.schedule ?? "",
+      schedule,
       maxCapacity: salon.maxCapacity ?? "",
       educationalLevel: salon.educationalLevel ?? "",
     });
@@ -89,6 +101,34 @@ export default function SalonsScreen() {
     if (editingId === salonId) reset();
   };
 
+  const normalizeSchedule = (value?: SalonSchedule | string): SalonSchedule => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") return [{ type: value as SalonScheduleEntry["type"], startTime: "", endTime: "" }];
+    return [];
+  };
+
+  const labelForSchedule = (type: SalonScheduleEntry["type"]) =>
+    SCHEDULE_OPTIONS.find((o) => o.value === type)?.label ?? type;
+
+  const toggleSchedule = (type: SalonScheduleEntry["type"]) => {
+    setDraft((prev) => {
+      const current = prev.schedule ?? [];
+      const exists = current.find((s) => s.type === type);
+      if (exists) {
+        return { ...prev, schedule: current.filter((s) => s.type !== type) };
+      }
+      return { ...prev, schedule: [...current, { type, startTime: "", endTime: "" }] };
+    });
+  };
+
+  const updateScheduleTime = (type: SalonScheduleEntry["type"], field: keyof Pick<SalonScheduleEntry, "startTime" | "endTime">, value: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      schedule: (prev.schedule ?? []).map((s) => (s.type === type ? { ...s, [field]: value } : s)),
+    }));
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -98,17 +138,41 @@ export default function SalonsScreen() {
         <TextInput value={draft.name} onChangeText={(value) => setDraft({ ...draft, name: value })} placeholder="Nombre del salón" style={styles.input} />
 
         <Text style={styles.fieldLabel}>Jornada</Text>
-        <View style={styles.chipRow}>
-          {SCHEDULE_OPTIONS.map((option) => (
-            <Pressable
-              key={option.value}
-              onPress={() => setDraft({ ...draft, schedule: option.value })}
-              style={[styles.chip, draft.schedule === option.value && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, draft.schedule === option.value && styles.chipTextActive]}>{option.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {SCHEDULE_OPTIONS.map((option) => {
+          const entry = draft.schedule?.find((s) => s.type === option.value);
+          const isSelected = !!entry;
+          return (
+            <View key={option.value} style={styles.scheduleOption}>
+              <Pressable
+                onPress={() => toggleSchedule(option.value)}
+                style={[styles.checkboxRow, isSelected && styles.checkboxRowActive]}
+              >
+                <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+                  {isSelected ? <Text style={styles.check}>✓</Text> : null}
+                </View>
+                <Text style={[styles.checkboxLabel, isSelected && styles.checkboxLabelActive]}>{option.label}</Text>
+              </Pressable>
+              {isSelected ? (
+                <View style={styles.timeRow}>
+                  <View style={styles.timeField}>
+                    <Text style={styles.timeLabel}>Inicio</Text>
+                    <TimeField
+                      value={entry.startTime}
+                      onChange={(value) => updateScheduleTime(option.value, "startTime", value)}
+                    />
+                  </View>
+                  <View style={styles.timeField}>
+                    <Text style={styles.timeLabel}>Término</Text>
+                    <TimeField
+                      value={entry.endTime}
+                      onChange={(value) => updateScheduleTime(option.value, "endTime", value)}
+                    />
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
 
         <TextInput
           value={draft.maxCapacity ? String(draft.maxCapacity) : ""}
@@ -143,7 +207,9 @@ export default function SalonsScreen() {
           <Text style={styles.listTitle}>{salon.name}</Text>
           <Text style={styles.listBody}>Profesionales: {salon.professionalIds.length} · Participantes: {salon.participantIds.length}</Text>
           <Text style={styles.listBody}>
-            {salon.schedule ? `Jornada: ${salon.schedule}` : "Sin jornada"}
+            {salon.schedule && salon.schedule.length > 0
+              ? salon.schedule.map((s) => `${labelForSchedule(s.type)} ${s.startTime}-${s.endTime}`).join(" · ")
+              : "Sin jornada"}
             {salon.maxCapacity ? ` · Capacidad: ${salon.maxCapacity}` : ""}
           </Text>
           <Text style={styles.listBody}>
@@ -174,7 +240,35 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
   chipText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
   chipTextActive: { color: colors.tealDark },
-  toggleButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginBottom: spacing.sm },
+  scheduleOption: { marginBottom: spacing.sm },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    backgroundColor: colors.paper,
+  },
+  checkboxRowActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.slate,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxActive: { backgroundColor: colors.teal, borderColor: colors.teal },
+  check: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  checkboxLabel: { fontSize: 13, color: colors.ink, fontWeight: "600" },
+  checkboxLabelActive: { color: colors.tealDark },
+  timeRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm, paddingLeft: spacing.md },
+  timeField: { flex: 1 },
+  timeLabel: { fontSize: 11, color: colors.slate, marginBottom: spacing.xs },
   toggleButtonText: { color: colors.ink, fontWeight: "700" },
   primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },
   primaryButtonText: { color: "#fff", fontWeight: "700" },

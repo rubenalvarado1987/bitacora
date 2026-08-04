@@ -52,7 +52,7 @@ export interface SalonDraft {
   active: boolean;
   professionalIds: string[];
   participantIds: string[];
-  schedule?: SalonSchedule | "";
+  schedule?: SalonSchedule;
   maxCapacity?: number | "";
   educationalLevel?: SalonEducationalLevel | "";
 }
@@ -196,7 +196,7 @@ export async function saveSalon(organizationId: string, draft: SalonDraft, id?: 
   await setDoc(ref, {
     organizationId,
     ...draft,
-    schedule: draft.schedule || null,
+    schedule: draft.schedule && draft.schedule.length > 0 ? draft.schedule : null,
     maxCapacity: draft.maxCapacity || null,
     educationalLevel: draft.educationalLevel || null,
   });

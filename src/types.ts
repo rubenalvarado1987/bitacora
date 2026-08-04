@@ -115,7 +115,13 @@ export interface EconomicPlan {
   active: boolean;
 }
 
-export type SalonSchedule = "mañana" | "tarde" | "extendida";
+export interface SalonScheduleEntry {
+  type: "mañana" | "tarde" | "extendida";
+  startTime: string;
+  endTime: string;
+}
+
+export type SalonSchedule = SalonScheduleEntry[];
 
 export type SalonEducationalLevel =
   | "sala_cuna_menor"
