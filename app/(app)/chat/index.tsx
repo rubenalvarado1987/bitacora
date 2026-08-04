@@ -52,28 +52,39 @@ export default function ChatIndexScreen() {
     };
   }, [membership?.organizationId]);
 
-  const memberOptions = useMemo<MemberOption[]>(() => {
+  const guardianName = (p: Person) =>
+    String(p.baseData?.apoderado_principal ?? p.baseData?.nombre_apoderado ?? "").trim();
+
+  const memberOptions = useMemo<(MemberOption & { searchText: string })[]>(() => {
     const fromProfiles = profiles
       .filter((p) => p.linkedUid)
-      .map((p) => ({ uid: p.linkedUid as string, label: p.displayName, kind: "profesional" as const }));
+      .map((p) => ({
+        uid: p.linkedUid as string,
+        label: p.displayName,
+        kind: "profesional" as const,
+        searchText: p.displayName.toLowerCase(),
+      }));
     const fromParticipants = participants
       .filter((p) => p.linkedUid)
-      .map((p) => ({ uid: p.linkedUid as string, label: p.name, kind: "participante" as const }));
+      .map((p) => {
+        const guardian = guardianName(p);
+        return {
+          uid: p.linkedUid as string,
+          label: guardian ? `${p.name} (${guardian})` : p.name,
+          kind: "participante" as const,
+          searchText: `${p.name} ${guardian}`.toLowerCase(),
+        };
+      });
     return [...fromProfiles, ...fromParticipants];
   }, [profiles, participants]);
 
   const selectedUids = useMemo(() => new Set(selectedMembers.map((m) => m.uid)), [selectedMembers]);
 
-  const professionalOptions = useMemo(
-    () => memberOptions.filter((m) => m.kind === "profesional" && !selectedUids.has(m.uid)),
-    [memberOptions, selectedUids]
-  );
-
   const searchResults = useMemo(() => {
     const term = memberSearch.trim().toLowerCase();
     if (!term) return [];
     return memberOptions
-      .filter((m) => m.kind === "participante" && !selectedUids.has(m.uid) && m.label.toLowerCase().includes(term))
+      .filter((m) => !selectedUids.has(m.uid) && m.searchText.includes(term))
       .slice(0, 6);
   }, [memberOptions, memberSearch, selectedUids]);
 
@@ -132,25 +143,10 @@ export default function ChatIndexScreen() {
               </Pressable>
             ))}
           </View>
-          <Text style={styles.fieldLabel}>Profesionales</Text>
-          {professionalOptions.length > 0 ? (
-            <View style={styles.searchResults}>
-              {professionalOptions.map((opt) => (
-                <Pressable key={opt.uid} onPress={() => addMember(opt)} style={styles.searchResultRow}>
-                  <Text style={styles.searchResultText}>{opt.label}</Text>
-                  <Text style={styles.searchResultKind}>Profesional</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.searchEmpty}>No hay profesionales disponibles.</Text>
-          )}
-
-          <Text style={styles.fieldLabel}>Participantes y/o apoderados</Text>
           <TextInput
             value={memberSearch}
             onChangeText={setMemberSearch}
-            placeholder="Buscar participante o apoderado"
+            placeholder="Buscar profesional, participante o apoderado"
             style={styles.input}
           />
           {searchResults.length > 0 ? (
@@ -158,7 +154,7 @@ export default function ChatIndexScreen() {
               {searchResults.map((opt) => (
                 <Pressable key={opt.uid} onPress={() => addMember(opt)} style={styles.searchResultRow}>
                   <Text style={styles.searchResultText}>{opt.label}</Text>
-                  <Text style={styles.searchResultKind}>Participante</Text>
+                  <Text style={styles.searchResultKind}>{opt.kind === "profesional" ? "Profesional" : "Participante"}</Text>
                 </Pressable>
               ))}
             </View>
@@ -237,7 +233,6 @@ const styles = StyleSheet.create({
   searchResultRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line },
   searchResultText: { fontSize: 13, color: colors.ink, fontWeight: "600", flexShrink: 1 },
   searchResultKind: { fontSize: 11, color: colors.slate },
-  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs, marginTop: spacing.xs },
   searchEmpty: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
   memberChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
   memberChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.tealTint, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 10, maxWidth: 200 },
