@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { ChatMessage, ChatThread } from "../types";
@@ -27,15 +28,20 @@ export function listenThreads(
   role: string,
   onChange: (items: ChatThread[]) => void
 ) {
-  const q = query(
-    collection(db, "organizations", organizationId, "chatThreads"),
-    orderBy("title")
-  );
+  // Los no admin deben filtrar con un where("memberIds", "array-contains", uid): la regla de
+  // Firestore valida la membresía por documento y rechaza el listado completo si la consulta
+  // no trae ese filtro (no puede probar que todos los resultados cumplirán la regla).
+  const q =
+    role === "admin"
+      ? query(collection(db, "organizations", organizationId, "chatThreads"), orderBy("title"))
+      : query(
+          collection(db, "organizations", organizationId, "chatThreads"),
+          where("memberIds", "array-contains", uid)
+        );
   return onSnapshot(q, (snap) => {
-    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatThread));
-    // Admins see all threads; others only see threads where they're listed as members
-    const visible = role === "admin" ? all : all.filter((t) => t.memberIds.includes(uid));
-    onChange(visible);
+    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatThread));
+    items.sort((a, b) => a.title.localeCompare(b.title));
+    onChange(items);
   });
 }
 
