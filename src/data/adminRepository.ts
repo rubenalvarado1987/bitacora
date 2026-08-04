@@ -27,6 +27,7 @@ export interface ProfileDraft {
   emergencyContactPhone?: string;
   emergencyContactRelationship?: EmergencyContactRelationship | "";
   salonIds?: string[];
+  position?: string;
 }
 
 export interface PlanDraft {
@@ -83,6 +84,7 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
     emergencyContactPhone: draft.emergencyContactPhone || null,
     emergencyContactRelationship: draft.emergencyContactRelationship || null,
     salonIds: draft.salonIds || [],
+    position: draft.position || null,
   });
 
   await syncProfileSalons(organizationId, ref.id, draft.salonIds || []);

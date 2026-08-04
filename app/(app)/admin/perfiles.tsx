@@ -45,6 +45,7 @@ const emptyDraft: ProfileDraft = {
   emergencyContactPhone: "",
   emergencyContactRelationship: "",
   salonIds: [],
+  position: "",
 };
 
 export default function AdminProfilesScreen() {
@@ -196,6 +197,7 @@ export default function AdminProfilesScreen() {
       emergencyContactPhone: profile.emergencyContactPhone ?? "",
       emergencyContactRelationship: profile.emergencyContactRelationship ?? "",
       salonIds: profile.salonIds ?? [],
+      position: profile.position ?? "",
     });
     setEmail("");
     setPassword("");
@@ -219,6 +221,7 @@ export default function AdminProfilesScreen() {
         <Text style={styles.sectionLabel}>{title}</Text>
         <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre Completo" style={styles.input} />
         <TextInput value={draft.username} onChangeText={(value) => setDraft({ ...draft, username: value })} placeholder="Usuario" style={styles.input} />
+        <TextInput value={draft.position ?? ""} onChangeText={(value) => setDraft({ ...draft, position: value })} placeholder="Cargo (opcional)" style={styles.input} />
         <TextInput value={draft.nationality ?? ""} onChangeText={(value) => setDraft({ ...draft, nationality: value })} placeholder="Nacionalidad" style={styles.input} />
 
         <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
@@ -357,7 +360,7 @@ export default function AdminProfilesScreen() {
       {items.map((item) => (
         <View key={item.id} style={styles.listCard}>
           <Text style={styles.listTitle}>{item.displayName}</Text>
-          <Text style={styles.listBody}>@{item.username} · {item.role} · {item.active ? "Activo" : "Inactivo"}</Text>
+          <Text style={styles.listBody}>@{item.username} · {item.role}{item.position ? ` · ${item.position}` : ""} · {item.active ? "Activo" : "Inactivo"}</Text>
           <Text style={styles.listBody}>{item.linkedUid ? "Cuenta vinculada" : "Sin acceso creado"}</Text>
           <Text style={styles.listBody}>
             Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}

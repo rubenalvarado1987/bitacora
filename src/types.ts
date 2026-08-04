@@ -92,6 +92,7 @@ export interface ProfileRecord {
   emergencyContactPhone?: string;
   emergencyContactRelationship?: EmergencyContactRelationship;
   salonIds?: string[];
+  position?: string;
 }
 
 export interface Organization {
