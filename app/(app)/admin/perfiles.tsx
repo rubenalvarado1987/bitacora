@@ -18,6 +18,7 @@ import {
 } from "../../../src/data/adminRepository";
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
+import { formatRut, isValidRut } from "../../../src/utils/rut";
 
 const RELATIONSHIP_OPTIONS = [
   { value: "Padre", label: "Padre" },
@@ -79,6 +80,7 @@ export default function AdminProfilesScreen() {
 
   const title = useMemo(() => (editingId ? "Editar perfil" : "Nuevo perfil"), [editingId]);
   const needsAccount = !draft.linkedUid;
+  const rutInvalid = (draft.idNumber ?? "").trim().length > 0 && !isValidRut(draft.idNumber ?? "");
 
   const selectedSalonIds = useMemo(() => new Set(draft.salonIds ?? []), [draft.salonIds]);
 
@@ -231,7 +233,14 @@ export default function AdminProfilesScreen() {
         <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
         <DateField value={draft.birthDate ?? ""} onChange={(iso) => setDraft({ ...draft, birthDate: iso })} placeholder="Seleccionar fecha de nacimiento" />
 
-        <TextInput value={draft.idNumber ?? ""} onChangeText={(value) => setDraft({ ...draft, idNumber: value })} placeholder="Cédula de identidad" style={styles.input} />
+        <TextInput
+          value={draft.idNumber ?? ""}
+          onChangeText={(value) => setDraft({ ...draft, idNumber: formatRut(value) })}
+          placeholder="RUT"
+          autoCapitalize="characters"
+          style={[styles.input, rutInvalid && styles.inputError]}
+        />
+        {rutInvalid ? <Text style={styles.errorText}>RUT inválido</Text> : null}
         <TextInput value={draft.addressStreet ?? ""} onChangeText={(value) => setDraft({ ...draft, addressStreet: value })} placeholder="Dirección (calle)" style={styles.input} />
         <TextInput value={draft.comuna ?? ""} onChangeText={(value) => setDraft({ ...draft, comuna: value })} placeholder="Comuna" style={styles.input} />
         <TextInput value={draft.phone ?? ""} onChangeText={(value) => setDraft({ ...draft, phone: value })} placeholder="Teléfono" keyboardType="phone-pad" style={styles.input} />
@@ -399,6 +408,8 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
   fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs, marginTop: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
+  inputError: { borderColor: colors.danger, marginBottom: 0 },
+  errorText: { fontSize: 11, color: colors.danger, marginBottom: spacing.sm },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
   roleChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
   roleChipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
