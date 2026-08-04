@@ -38,11 +38,18 @@ export function listenThreads(
           collection(db, "organizations", organizationId, "chatThreads"),
           where("memberIds", "array-contains", uid)
         );
-  return onSnapshot(q, (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatThread));
-    items.sort((a, b) => a.title.localeCompare(b.title));
-    onChange(items);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatThread));
+      items.sort((a, b) => a.title.localeCompare(b.title));
+      onChange(items);
+    },
+    (error) => {
+      console.error("listenThreads error:", error.code, error.message);
+      onChange([]);
+    }
+  );
 }
 
 export async function createThread(organizationId: string, draft: ThreadDraft) {

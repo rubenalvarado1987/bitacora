@@ -41,6 +41,8 @@ export default function ChatIndexScreen() {
   const [participants, setParticipants] = useState<Person[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<MemberOption[]>([]);
   const [memberSearch, setMemberSearch] = useState("");
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
+  const [participantSearch, setParticipantSearch] = useState("");
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -104,6 +106,30 @@ export default function ChatIndexScreen() {
     setSelectedMembers((prev) => prev.filter((m) => m.uid !== uid));
   };
 
+  // Cuando el admin elige un participante en el scope "participant", vincula el hilo
+  // y agrega automáticamente al apoderado como miembro si tiene cuenta vinculada.
+  const handleSelectParticipant = (p: Person) => {
+    setSelectedParticipantId(p.id);
+    setParticipantSearch(p.name);
+    setDraft((d) => ({ ...d, participantId: p.id }));
+    if (p.linkedUid) {
+      const guardian = guardianName(p);
+      const label = guardian ? `${p.name} (${guardian})` : p.name;
+      setSelectedMembers((prev) => {
+        if (prev.some((m) => m.uid === p.linkedUid)) return prev;
+        return [...prev, { uid: p.linkedUid as string, label, kind: "participante" }];
+      });
+    }
+  };
+
+  const participantSearchResults = useMemo(() => {
+    const term = participantSearch.trim().toLowerCase();
+    if (!term || selectedParticipantId) return [];
+    return participants
+      .filter((p) => p.name.toLowerCase().includes(term))
+      .slice(0, 6);
+  }, [participants, participantSearch, selectedParticipantId]);
+
   useEffect(() => {
     if (!membership?.organizationId || !user) return;
     return listenThreads(membership.organizationId, user.uid, role, setThreads);
@@ -122,6 +148,8 @@ export default function ChatIndexScreen() {
       setDraft({ title: "", scope: "global", memberIds: [] });
       setSelectedMembers([]);
       setMemberSearch("");
+      setSelectedParticipantId(null);
+      setParticipantSearch("");
       setShowForm(false);
       router.push(`/chat/${threadId}` as any);
     } catch (e: any) {
@@ -146,13 +174,46 @@ export default function ChatIndexScreen() {
             {SCOPES.map((s) => (
               <Pressable
                 key={s}
-                onPress={() => setDraft({ ...draft, scope: s })}
+                onPress={() => {
+                  setDraft((d) => ({ ...d, scope: s, participantId: undefined }));
+                  setSelectedParticipantId(null);
+                  setParticipantSearch("");
+                }}
                 style={[styles.chip, draft.scope === s && styles.chipActive]}
               >
                 <Text style={[styles.chipText, draft.scope === s && styles.chipTextActive]}>{s}</Text>
               </Pressable>
             ))}
           </View>
+          {draft.scope === "participant" ? (
+            <>
+              <TextInput
+                value={participantSearch}
+                onChangeText={(v) => {
+                  setParticipantSearch(v);
+                  if (selectedParticipantId) {
+                    setSelectedParticipantId(null);
+                    setDraft((d) => ({ ...d, participantId: undefined }));
+                  }
+                }}
+                placeholder="Buscar participante…"
+                style={styles.input}
+                editable={!selectedParticipantId}
+              />
+              {participantSearchResults.length > 0 ? (
+                <View style={styles.searchResults}>
+                  {participantSearchResults.map((p) => (
+                    <Pressable key={p.id} onPress={() => handleSelectParticipant(p)} style={styles.searchResultRow}>
+                      <Text style={styles.searchResultText}>{p.name}</Text>
+                      <Text style={styles.searchResultKind}>{p.linkedUid ? "Con apoderado" : "Sin cuenta"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : participantSearch.trim().length > 0 && !selectedParticipantId ? (
+                <Text style={styles.searchEmpty}>Sin resultados.</Text>
+              ) : null}
+            </>
+          ) : null}
           <TextInput
             value={memberSearch}
             onChangeText={setMemberSearch}
@@ -187,7 +248,13 @@ export default function ChatIndexScreen() {
             <Pressable onPress={handleCreate} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Crear hilo</Text>
             </Pressable>
-            <Pressable onPress={() => setShowForm(false)} style={styles.secondaryButton}>
+            <Pressable onPress={() => {
+              setShowForm(false);
+              setSelectedParticipantId(null);
+              setParticipantSearch("");
+              setDraft({ title: "", scope: "global", memberIds: [] });
+              setSelectedMembers([]);
+            }} style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>Cancelar</Text>
             </Pressable>
           </View>
