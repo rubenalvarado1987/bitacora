@@ -8,6 +8,7 @@ import { colors, radius, spacing } from "../../../src/theme";
 import { showAlert } from "../../../src/utils/alert";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import { FieldInput } from "../../../src/components/SectionField";
+import { isValidEmail } from "../../../src/utils/email";
 import DropdownSelect from "../../../src/components/DropdownSelect";
 import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { EconomicPlan, Organization, Person, Salon, Template } from "../../../src/types";
@@ -91,6 +92,8 @@ export default function ParticipantsScreen() {
 
   const title = useMemo(() => (editingId ? "Editar participante" : "Nuevo participante"), [editingId]);
   const needsAccount = !draft.linkedUid;
+  const accountEmailInvalid = email.trim().length > 0 && !isValidEmail(email);
+  const newEmailInvalid = newEmail.trim().length > 0 && !isValidEmail(newEmail);
 
   const reset = () => {
     setDraft(emptyDraft);
@@ -147,6 +150,10 @@ export default function ParticipantsScreen() {
       showAlert("Sin cambios", "Ingresa un nuevo correo y/o contraseña.");
       return;
     }
+    if (newEmail.trim() && !isValidEmail(newEmail)) {
+      showAlert("Correo inválido", "Ingresa un correo con formato válido.");
+      return;
+    }
     if (newPassword && newPassword.length < 6) {
       showAlert("Contraseña muy corta", "Debe tener al menos 6 caracteres.");
       return;
@@ -190,6 +197,11 @@ export default function ParticipantsScreen() {
           "Acceso al sistema",
           "Ingresa un correo válido y una contraseña de al menos 6 caracteres para crear su acceso."
         );
+        return;
+      }
+
+      if (!isValidEmail(email)) {
+        showAlert("Correo inválido", "Ingresa un correo con formato válido para el acceso.");
         return;
       }
 
@@ -379,8 +391,9 @@ export default function ParticipantsScreen() {
               placeholder="correo@ejemplo.com"
               autoCapitalize="none"
               keyboardType="email-address"
-              style={styles.input}
+              style={[styles.input, accountEmailInvalid && styles.inputError]}
             />
+            {accountEmailInvalid ? <Text style={styles.errorText}>Correo inválido</Text> : null}
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -399,8 +412,9 @@ export default function ParticipantsScreen() {
               placeholder="Nuevo correo (opcional)"
               autoCapitalize="none"
               keyboardType="email-address"
-              style={styles.input}
+              style={[styles.input, newEmailInvalid && styles.inputError]}
             />
+            {newEmailInvalid ? <Text style={styles.errorText}>Correo inválido</Text> : null}
             <TextInput
               value={newPassword}
               onChangeText={setNewPassword}
@@ -463,6 +477,8 @@ const styles = StyleSheet.create({
   fichaSectionTitle: { fontSize: 12, fontWeight: "700", color: colors.tealDark, textTransform: "uppercase", marginBottom: spacing.sm },
   fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
+  inputError: { borderColor: colors.danger, marginBottom: 0 },
+  errorText: { fontSize: 11, color: colors.danger, marginBottom: spacing.sm },
   multiline: { minHeight: 120, textAlignVertical: "top" },
   searchResults: {
     borderWidth: 1,

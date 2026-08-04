@@ -19,6 +19,7 @@ import {
 import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
 import { formatRut, isValidRut } from "../../../src/utils/rut";
+import { isValidEmail } from "../../../src/utils/email";
 
 const RELATIONSHIP_OPTIONS = [
   { value: "Padre", label: "Padre" },
@@ -81,6 +82,9 @@ export default function AdminProfilesScreen() {
   const title = useMemo(() => (editingId ? "Editar perfil" : "Nuevo perfil"), [editingId]);
   const needsAccount = !draft.linkedUid;
   const rutInvalid = (draft.idNumber ?? "").trim().length > 0 && !isValidRut(draft.idNumber ?? "");
+  const personalEmailInvalid = (draft.personalEmail ?? "").trim().length > 0 && !isValidEmail(draft.personalEmail ?? "");
+  const accountEmailInvalid = email.trim().length > 0 && !isValidEmail(email);
+  const newEmailInvalid = newEmail.trim().length > 0 && !isValidEmail(newEmail);
 
   const selectedSalonIds = useMemo(() => new Set(draft.salonIds ?? []), [draft.salonIds]);
 
@@ -114,6 +118,10 @@ export default function AdminProfilesScreen() {
     if (!membership?.organizationId || !draft.linkedUid) return;
     if (!newEmail.trim() && !newPassword) {
       showAlert("Sin cambios", "Ingresa un nuevo correo y/o contraseña.");
+      return;
+    }
+    if (newEmail.trim() && !isValidEmail(newEmail)) {
+      showAlert("Correo inválido", "Ingresa un correo con formato válido.");
       return;
     }
     if (newPassword && newPassword.length < 6) {
@@ -152,6 +160,16 @@ export default function AdminProfilesScreen() {
         "Acceso del profesional",
         "Ingresa un correo válido y una contraseña de al menos 6 caracteres para crear su acceso."
       );
+      return;
+    }
+
+    if (needsAccount && !isValidEmail(email)) {
+      showAlert("Correo inválido", "Ingresa un correo con formato válido para el acceso del profesional.");
+      return;
+    }
+
+    if ((draft.personalEmail ?? "").trim() && !isValidEmail(draft.personalEmail ?? "")) {
+      showAlert("Correo inválido", "Ingresa un correo personal con formato válido.");
       return;
     }
 
@@ -244,7 +262,15 @@ export default function AdminProfilesScreen() {
         <TextInput value={draft.addressStreet ?? ""} onChangeText={(value) => setDraft({ ...draft, addressStreet: value })} placeholder="Dirección (calle)" style={styles.input} />
         <TextInput value={draft.comuna ?? ""} onChangeText={(value) => setDraft({ ...draft, comuna: value })} placeholder="Comuna" style={styles.input} />
         <TextInput value={draft.phone ?? ""} onChangeText={(value) => setDraft({ ...draft, phone: value })} placeholder="Teléfono" keyboardType="phone-pad" style={styles.input} />
-        <TextInput value={draft.personalEmail ?? ""} onChangeText={(value) => setDraft({ ...draft, personalEmail: value })} placeholder="Correo personal" autoCapitalize="none" keyboardType="email-address" style={styles.input} />
+        <TextInput
+          value={draft.personalEmail ?? ""}
+          onChangeText={(value) => setDraft({ ...draft, personalEmail: value })}
+          placeholder="Correo personal"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          style={[styles.input, personalEmailInvalid && styles.inputError]}
+        />
+        {personalEmailInvalid ? <Text style={styles.errorText}>Correo inválido</Text> : null}
 
         <Text style={styles.fieldLabel}>Contacto de emergencia</Text>
         <TextInput value={draft.emergencyContactName ?? ""} onChangeText={(value) => setDraft({ ...draft, emergencyContactName: value })} placeholder="Nombre del contacto" style={styles.input} />
@@ -323,8 +349,9 @@ export default function AdminProfilesScreen() {
               placeholder="correo@ejemplo.com"
               autoCapitalize="none"
               keyboardType="email-address"
-              style={styles.input}
+              style={[styles.input, accountEmailInvalid && styles.inputError]}
             />
+            {accountEmailInvalid ? <Text style={styles.errorText}>Correo inválido</Text> : null}
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -343,8 +370,9 @@ export default function AdminProfilesScreen() {
               placeholder="Nuevo correo (opcional)"
               autoCapitalize="none"
               keyboardType="email-address"
-              style={styles.input}
+              style={[styles.input, newEmailInvalid && styles.inputError]}
             />
+            {newEmailInvalid ? <Text style={styles.errorText}>Correo inválido</Text> : null}
             <TextInput
               value={newPassword}
               onChangeText={setNewPassword}

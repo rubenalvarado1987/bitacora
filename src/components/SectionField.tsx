@@ -5,6 +5,7 @@ import { colors, radius, spacing } from "../theme";
 import DateField from "./DateField";
 import DropdownSelect from "./DropdownSelect";
 import { formatRut, isRutField, isValidRut } from "../utils/rut";
+import { isEmailField, isValidEmail } from "../utils/email";
 
 // Fila de solo lectura, usada para mostrar los datos base de una ficha.
 export function FieldDisplay({ label, value }: { label: string; value: string | number | boolean | undefined }) {
@@ -33,6 +34,10 @@ export function FieldInput({
   const rutValue = value !== undefined ? String(value) : "";
   const rutInvalid = isRut && rutValue.trim().length > 0 && !isValidRut(rutValue);
 
+  const isEmail = field.type === "text" && !isRut && isEmailField(field.id || field.label);
+  const emailValue = value !== undefined ? String(value) : "";
+  const emailInvalid = isEmail && emailValue.trim().length > 0 && !isValidEmail(emailValue);
+
   return (
     <View style={styles.inputBlock}>
       <Text style={styles.inputLabel}>
@@ -51,7 +56,19 @@ export function FieldInput({
         />
       )}
 
-      {!isRut && (field.type === "text" || field.type === "time") && (
+      {isEmail && (
+        <TextInput
+          style={[styles.textInput, emailInvalid && styles.textInputError]}
+          value={emailValue}
+          onChangeText={onChange}
+          placeholder="correo@ejemplo.com"
+          placeholderTextColor={colors.slate}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+      )}
+
+      {!isRut && !isEmail && (field.type === "text" || field.type === "time") && (
         <TextInput
           style={styles.textInput}
           value={value !== undefined ? String(value) : ""}
@@ -62,6 +79,7 @@ export function FieldInput({
       )}
 
       {isRut && rutInvalid && <Text style={styles.errorText}>RUT inválido</Text>}
+      {isEmail && emailInvalid && <Text style={styles.errorText}>Correo inválido</Text>}
 
       {field.type === "date" && (
         <DateField
