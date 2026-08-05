@@ -15,6 +15,7 @@ export interface ProfileDraft {
   username: string;
   role: "admin" | "editor" | "lector";
   active: boolean;
+  photoUrl?: string | null;
   linkedUid?: string | null;
   accountEmail?: string;
   nationality?: string;
@@ -76,6 +77,7 @@ export async function saveProfile(organizationId: string, draft: ProfileDraft, i
   await setDoc(ref, {
     organizationId,
     ...draft,
+    photoUrl: draft.photoUrl || null,
     nationality: draft.nationality || null,
     birthDate: draft.birthDate || null,
     idNumber: draft.idNumber || null,

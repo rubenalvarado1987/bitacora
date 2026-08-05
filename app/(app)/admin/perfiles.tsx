@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
@@ -21,6 +22,7 @@ import { provisionLinkedAccount } from "../../../src/data/accountProvisioning";
 import { updateLinkedAccountCredentials } from "../../../src/data/accountManagement";
 import { formatRut, isValidRut } from "../../../src/utils/rut";
 import { isValidEmail } from "../../../src/utils/email";
+import { isR2Configured, uploadProfilePhoto } from "../../../src/data/r2Repository";
 
 const RELATIONSHIP_OPTIONS = [
   { value: "Padre", label: "Padre" },
@@ -54,6 +56,7 @@ const emptyDraft: ProfileDraft = {
   emergencyContactRelationship: "",
   salonIds: [],
   position: "",
+  photoUrl: "",
 };
 
 export default function AdminProfilesScreen() {
@@ -67,6 +70,7 @@ export default function AdminProfilesScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [updatingAccount, setUpdatingAccount] = useState(false);
@@ -105,6 +109,32 @@ export default function AdminProfilesScreen() {
 
   const removeSalonFromDraft = (salonId: string) => {
     setDraft((prev) => ({ ...prev, salonIds: (prev.salonIds ?? []).filter((id) => id !== salonId) }));
+  };
+
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showAlert("Permiso requerido", "Necesitamos acceso a tu biblioteca de fotos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setUploadingPhoto(true);
+    try {
+      const tempId = editingId ?? `temp_${Date.now()}`;
+      const url = await uploadProfilePhoto(uri, tempId);
+      setDraft((prev) => ({ ...prev, photoUrl: url }));
+    } catch (e: any) {
+      showAlert("Error al subir foto", e?.message ?? "Intenta de nuevo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const reset = () => {
@@ -229,6 +259,7 @@ export default function AdminProfilesScreen() {
       emergencyContactRelationship: profile.emergencyContactRelationship ?? "",
       salonIds: profile.salonIds ?? [],
       position: profile.position ?? "",
+      photoUrl: profile.photoUrl ?? "",
     });
     setEmail("");
     setPassword("");
@@ -250,6 +281,24 @@ export default function AdminProfilesScreen() {
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Panel Admin", href: "/admin" }, { label: "Perfiles" }]} />
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{title}</Text>
+
+        {isR2Configured() ? (
+          <View style={styles.photoRow}>
+            {draft.photoUrl ? (
+              <Image source={{ uri: draft.photoUrl }} style={styles.photoPreview} />
+            ) : (
+              <View style={[styles.photoPreview, styles.photoPlaceholder]}>
+                <Text style={styles.photoPlaceholderText}>Sin foto</Text>
+              </View>
+            )}
+            <Pressable onPress={handlePickPhoto} style={styles.photoButton} disabled={uploadingPhoto}>
+              {uploadingPhoto
+                ? <ActivityIndicator size="small" color={colors.teal} />
+                : <Text style={styles.photoButtonText}>{draft.photoUrl ? "Cambiar foto" : "Subir foto"}</Text>}
+            </Pressable>
+          </View>
+        ) : null}
+
         <TextInput value={draft.displayName} onChangeText={(value) => setDraft({ ...draft, displayName: value })} placeholder="Nombre Completo" style={styles.input} />
         <TextInput value={draft.username} onChangeText={(value) => setDraft({ ...draft, username: value })} placeholder="Usuario" style={styles.input} />
         <TextInput value={draft.position ?? ""} onChangeText={(value) => setDraft({ ...draft, position: value })} placeholder="Cargo (opcional)" style={styles.input} />
@@ -441,6 +490,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
+  photoPreview: { width: 72, height: 72, borderRadius: 36 },
+  photoPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
+  photoPlaceholderText: { fontSize: 11, color: colors.slate },
+  photoButton: { borderWidth: 1, borderColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: spacing.md, minWidth: 100, alignItems: "center" },
+  photoButtonText: { fontSize: 13, color: colors.teal, fontWeight: "600" },
   fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs, marginTop: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
   inputError: { borderColor: colors.danger, marginBottom: 0 },

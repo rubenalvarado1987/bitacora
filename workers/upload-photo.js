@@ -44,12 +44,15 @@ export default {
 
     const file = formData.get("file");
     const participantId = formData.get("participantId");
+    const profileId = formData.get("profileId");
 
-    if (!file || !participantId) {
-      return json({ error: "Faltan los campos file y/o participantId." }, 400);
+    if (!file || (!participantId && !profileId)) {
+      return json({ error: "Faltan los campos file y/o participantId/profileId." }, 400);
     }
 
-    const key = `participants/${participantId}/${Date.now()}.jpg`;
+    const key = participantId
+      ? `participants/${participantId}/${Date.now()}.jpg`
+      : `profiles/${profileId}/${Date.now()}.jpg`;
 
     // R2.put acepta Blob/File directamente; evita .stream() que no está en todos los runtimes.
     await env.R2_BUCKET.put(key, file, {

@@ -53,9 +53,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { participantId } = req.body ?? {};
-  if (!participantId) {
-    res.status(400).json({ error: "Falta participantId." });
+  const { participantId, profileId } = req.body ?? {};
+  if (!participantId && !profileId) {
+    res.status(400).json({ error: "Falta participantId o profileId." });
     return;
   }
 
@@ -66,7 +66,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const key = `participants/${participantId}/${Date.now()}.jpg`;
+  const key = participantId
+    ? `participants/${participantId}/${Date.now()}.jpg`
+    : `profiles/${profileId}/${Date.now()}.jpg`;
 
   try {
     const r2 = buildR2Client();
