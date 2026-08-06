@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../../src/firebase";
@@ -80,10 +80,21 @@ export default function EditorParticipantScreen() {
         ListHeaderComponent={
           person ? (
             <View style={styles.header}>
-              <Text style={styles.participantName}>{person.name}</Text>
-              <Text style={styles.meta}>
-                {person.status} {person.planId ? `· plan ${person.planId}` : ""}
-              </Text>
+              <View style={styles.headerRow}>
+                {person.photoUrl ? (
+                  <Image source={{ uri: person.photoUrl }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <Text style={styles.avatarInitials}>{getInitials(person.name)}</Text>
+                  </View>
+                )}
+                <View style={styles.headerInfo}>
+                  <Text style={styles.participantName}>{person.name}</Text>
+                  <Text style={styles.meta}>
+                    {person.status} {person.planId ? `· plan ${person.planId}` : ""}
+                  </Text>
+                </View>
+              </View>
               <Text style={styles.timelineLabel}>Registros</Text>
             </View>
           ) : null
@@ -103,12 +114,26 @@ export default function EditorParticipantScreen() {
   );
 }
 
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   topBlock: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, paddingTop: spacing.xs },
   header: { marginBottom: spacing.lg },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  headerInfo: { flex: 1 },
+  avatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: colors.line },
+  avatarPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
+  avatarInitials: { color: colors.tealDark, fontSize: 16, fontWeight: "700" },
   participantName: { fontSize: 20, fontWeight: "700", color: colors.ink },
   meta: { fontSize: 12, color: colors.slate, marginTop: 4 },
   timelineLabel: {
