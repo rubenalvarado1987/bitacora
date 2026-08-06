@@ -496,12 +496,23 @@ export default function ParticipantsScreen() {
 
       {items.map((item) => (
         <View key={item.id} style={styles.listCard}>
-          <Text style={styles.listTitle}>{item.name}</Text>
-          <Text style={styles.listBody}>Template: {item.templateId} · {item.status} {item.planId ? `· plan ${plans.find((p) => p.id === item.planId)?.name ?? item.planId}` : ""}</Text>
-          <Text style={styles.listBody}>
-            Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
-          </Text>
-          <Text style={styles.listBody}>{item.linkedUid ? `Acceso al sistema creado · ${item.accountEmail || "correo no registrado"}` : "Sin acceso creado"}</Text>
+          <View style={styles.listHeaderRow}>
+            {item.photoUrl ? (
+              <Image source={{ uri: item.photoUrl }} style={styles.listAvatar} />
+            ) : (
+              <View style={[styles.listAvatar, styles.listAvatarPlaceholder]}>
+                <Text style={styles.listAvatarInitials}>{getInitials(item.name)}</Text>
+              </View>
+            )}
+            <View style={styles.listInfoCol}>
+              <Text style={styles.listTitle}>{item.name}</Text>
+              <Text style={styles.listBody}>Template: {item.templateId} · {item.status} {item.planId ? `· plan ${plans.find((p) => p.id === item.planId)?.name ?? item.planId}` : ""}</Text>
+              <Text style={styles.listBody}>
+                Salones: {item.salonIds?.length ? item.salonIds.map((id) => salons.find((s) => s.id === id)?.name ?? id).join(", ") : "ninguno"}
+              </Text>
+              <Text style={styles.listBody}>{item.linkedUid ? `Acceso al sistema creado · ${item.accountEmail || "correo no registrado"}` : "Sin acceso creado"}</Text>
+            </View>
+          </View>
           <View style={styles.actionsRow}>
             <Pressable onPress={() => startEdit(item)}><Text style={styles.actionLink}>Editar</Text></Pressable>
             <Pressable onPress={() => handleDelete(item.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
@@ -523,6 +534,15 @@ function mensajeDeErrorAuth(code?: string) {
     default:
       return "No se pudo crear la cuenta. Intenta de nuevo.";
   }
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 const styles = StyleSheet.create({
@@ -583,6 +603,11 @@ const styles = StyleSheet.create({
   accountLinked: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
   primaryButtonDisabled: { opacity: 0.6 },
   listCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  listHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  listInfoCol: { flex: 1 },
+  listAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line },
+  listAvatarPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
+  listAvatarInitials: { color: colors.tealDark, fontSize: 12, fontWeight: "700" },
   listTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
   listBody: { fontSize: 12, color: colors.slate, marginTop: spacing.xs, lineHeight: 18 },
   actionsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
