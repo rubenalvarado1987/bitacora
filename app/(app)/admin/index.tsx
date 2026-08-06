@@ -4,14 +4,20 @@ import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
 import Breadcrumb from "../../../src/components/Breadcrumb";
+import AppIcon from "../../../src/components/AppIcon";
 
-const cards = [
-  { href: "/admin/dashboard", title: "Dashboard", body: "Resumen operativo: participantes, salones y agenda del día." },
-  { href: "/admin/organizacion", title: "Organización", body: "Nombre y logo del jardín, visibles en toda la app." },
-  { href: "/admin/salones", title: "Salones", body: "Crear salones y asignar participantes y profesionales." },
-  { href: "/admin/planes", title: "Planes económicos", body: "Registrar planes y asociarlos a participantes." },
-  { href: "/admin/perfiles", title: "Perfiles", body: "Crear y editar Editor, Lector y perfiles participantes." },
-  { href: "/admin/participantes", title: "Participantes", body: "Alta, edición y ficha técnica del participante." },
+const cards: Array<{
+  href: string;
+  title: string;
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+  body: string;
+}> = [
+  { href: "/admin/dashboard", title: "Dashboard", icon: "chart-box-outline", body: "Resumen operativo: participantes, salones y agenda del día." },
+  { href: "/admin/organizacion", title: "Organización", icon: "domain", body: "Nombre y logo de la organización, visibles en toda la app." },
+  { href: "/admin/salones", title: "Salones", icon: "door", body: "Crear salones y asignar participantes y profesionales." },
+  { href: "/admin/planes", title: "Planes económicos", icon: "cash-multiple", body: "Registrar planes y asociarlos a participantes." },
+  { href: "/admin/perfiles", title: "Perfiles", icon: "account-tie", body: "Crear y editar Editor, Lector y perfiles participantes." },
+  { href: "/admin/participantes", title: "Participantes", icon: "account-group", body: "Alta, edición y ficha técnica del participante." },
 ];
 
 export default function AdminHubScreen() {
@@ -32,7 +38,12 @@ export default function AdminHubScreen() {
 
       {cards.map((card) => (
         <Pressable key={card.href} onPress={() => router.push(card.href as any)} style={styles.card}>
-          <Text style={styles.cardTitle}>{card.title}</Text>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardIconWrap}>
+              <AppIcon name={card.icon} size={18} color={colors.tealDark} />
+            </View>
+            <Text style={styles.cardTitle}>{card.title}</Text>
+          </View>
           <Text style={styles.cardBody}>{card.body}</Text>
         </Pressable>
       ))}
@@ -61,6 +72,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
+  },
+  cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  cardIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: colors.tealTint,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
   cardBody: { fontSize: 13, color: colors.slate, marginTop: spacing.xs, lineHeight: 18 },

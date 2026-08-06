@@ -6,6 +6,7 @@ import { listenParticipants, listenPlans, listenProfiles, listenSalons } from ".
 import { EconomicPlan, Person, ProfileRecord, Salon } from "../../src/types";
 import { colors, radius, spacing } from "../../src/theme";
 import Breadcrumb from "../../src/components/Breadcrumb";
+import AppIcon from "../../src/components/AppIcon";
 
 export default function HomeScreen() {
   const { membership, organization, signOut } = useAuth();
@@ -40,6 +41,12 @@ export default function HomeScreen() {
   );
   const completedSteps = setupSteps.filter((s) => s.done).length;
   const progressPercent = Math.round((completedSteps / setupSteps.length) * 100);
+  const stepIconByKey: Record<string, React.ComponentProps<typeof AppIcon>["name"]> = {
+    salones: "door",
+    planes: "cash-multiple",
+    profesionales: "account-tie",
+    participantes: "account-group",
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -56,22 +63,22 @@ export default function HomeScreen() {
           {/* Admin */}
           {membership?.role === "admin" && (
             <>
-              <NavButton label="Panel Admin" onPress={() => router.push("/admin" as any)} primary />
-              <NavButton label="Dashboard" onPress={() => router.push("/admin/dashboard" as any)} />
+              <NavButton label="Panel Admin" icon="shield-crown-outline" onPress={() => router.push("/admin" as any)} primary />
+              <NavButton label="Dashboard" icon="chart-box-outline" onPress={() => router.push("/admin/dashboard" as any)} />
             </>
           )}
           {/* Editor / Profesional */}
           {(membership?.role === "editor" || membership?.role === "profesional") && (
-            <NavButton label="Mis participantes" onPress={() => router.push("/editor" as any)} primary />
+            <NavButton label="Mis participantes" icon="account-group-outline" onPress={() => router.push("/editor" as any)} primary />
           )}
           {/* Lector / Apoderado */}
           {(membership?.role === "lector" || membership?.role === "lectura") && (
-            <NavButton label="Mis participantes" onPress={() => router.push("/apoderado" as any)} primary />
+            <NavButton label="Mis participantes" icon="account-heart-outline" onPress={() => router.push("/apoderado" as any)} primary />
           )}
           {/* Shared */}
-          <NavButton label="Calendario" onPress={() => router.push("/calendario" as any)} />
-          <NavButton label="Chat" onPress={() => router.push("/chat" as any)} />
-          <NavButton label="Cerrar sesión" onPress={signOut} />
+          <NavButton label="Calendario" icon="calendar-month-outline" onPress={() => router.push("/calendario" as any)} />
+          <NavButton label="Chat" icon="chat-processing-outline" onPress={() => router.push("/chat" as any)} />
+          <NavButton label="Cerrar sesión" icon="logout" onPress={signOut} />
         </View>
       </View>
 
@@ -96,7 +103,11 @@ export default function HomeScreen() {
               onPress={() => router.push(step.href as any)}
             >
               <View style={[styles.stepDot, step.done && styles.stepDotDone]}>
-                {step.done ? <Text style={styles.stepCheck}>✓</Text> : null}
+                {step.done ? (
+                  <Text style={styles.stepCheck}>✓</Text>
+                ) : (
+                  <AppIcon name={stepIconByKey[step.key] ?? "check-circle-outline"} size={12} color={colors.slate} />
+                )}
               </View>
               <Text style={[styles.stepLabel, step.done && styles.stepLabelDone]}>{step.label}</Text>
               <Text style={styles.stepArrow}>›</Text>
@@ -188,7 +199,17 @@ const styles = StyleSheet.create({
   progressActionText: { color: colors.tealDark, fontWeight: "700", fontSize: 13 },
 });
 
-function NavButton({ label, onPress, primary }: { label: string; onPress: () => void; primary?: boolean }) {
+function NavButton({
+  label,
+  icon,
+  onPress,
+  primary,
+}: Readonly<{
+  label: string;
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+  onPress: () => void;
+  primary?: boolean;
+}>) {
   return (
     <Pressable
       onPress={onPress}
@@ -199,7 +220,10 @@ function NavButton({ label, onPress, primary }: { label: string; onPress: () => 
         pressed && { opacity: 0.85 },
       ]}
     >
-      <Text style={{ color: primary ? "#fff" : colors.ink, fontWeight: "600" }}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <AppIcon name={icon} size={16} color={primary ? "#fff" : colors.slate} />
+        <Text style={{ color: primary ? "#fff" : colors.ink, fontWeight: "600" }}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
