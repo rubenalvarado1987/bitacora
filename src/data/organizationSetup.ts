@@ -62,10 +62,23 @@ export async function getOrganization(organizationId: string): Promise<Organizat
 
 export async function updateOrganizationBranding(
   organizationId: string,
-  data: { name?: string; logoUrl?: string }
+  data: {
+    name?: string;
+    logoUrl?: string;
+    addressStreet?: string;
+    comuna?: string;
+    region?: string;
+    phone?: string;
+    email?: string;
+  }
 ) {
   await updateDoc(doc(db, "organizations", organizationId), {
     ...(data.name !== undefined ? { name: data.name } : {}),
     ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl || null } : {}),
+    ...(data.addressStreet !== undefined ? { addressStreet: data.addressStreet || null } : {}),
+    ...(data.comuna !== undefined ? { comuna: data.comuna || null } : {}),
+    ...(data.region !== undefined ? { region: data.region || null } : {}),
+    ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
+    ...(data.email !== undefined ? { email: data.email || null } : {}),
   });
 }

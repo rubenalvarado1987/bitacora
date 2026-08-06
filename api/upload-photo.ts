@@ -8,7 +8,7 @@ function ensureAdminApp() {
   if (getApps().length) return;
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replaceAll(String.raw`\n`, "\n");
   if (!projectId || !clientEmail || !privateKey)
     throw new Error("Faltan credenciales de Firebase Admin.");
   initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
@@ -53,9 +53,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { participantId, profileId } = req.body ?? {};
-  if (!participantId && !profileId) {
-    res.status(400).json({ error: "Falta participantId o profileId." });
+  const { participantId, profileId, organizationId } = req.body ?? {};
+  if (!participantId && !profileId && !organizationId) {
+    res.status(400).json({ error: "Falta participantId, profileId u organizationId." });
     return;
   }
 
@@ -66,9 +66,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const key = participantId
-    ? `participants/${participantId}/${Date.now()}.jpg`
-    : `profiles/${profileId}/${Date.now()}.jpg`;
+  let key = `organizations/${organizationId}/${Date.now()}.jpg`;
+  if (participantId) {
+    key = `participants/${participantId}/${Date.now()}.jpg`;
+  } else if (profileId) {
+    key = `profiles/${profileId}/${Date.now()}.jpg`;
+  }
 
   try {
     const r2 = buildR2Client();

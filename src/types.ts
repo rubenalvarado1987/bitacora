@@ -109,6 +109,11 @@ export interface Organization {
   setupCompleted?: boolean;
   modules?: string[];
   logoUrl?: string;
+  addressStreet?: string;
+  comuna?: string;
+  region?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface EconomicPlan {
