@@ -7,7 +7,7 @@ import { useAuth } from "../../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../../src/data/entriesRepository";
 import { listenMyProfile } from "../../../../../src/data/adminRepository";
 import { EntryCard } from "../../../../../src/components/EntryCard";
-import { colors, radius, spacing } from "../../../../../src/theme";
+import { colors, spacing } from "../../../../../src/theme";
 import { Entry, Person, ProfileRecord } from "../../../../../src/types";
 import Breadcrumb from "../../../../../src/components/Breadcrumb";
 
@@ -59,7 +59,9 @@ export default function EditorParticipantScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }]} />
+        <View style={styles.topBlock}>
+          <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }]} />
+        </View>
         <Text style={styles.empty}>No tienes acceso a este participante.</Text>
       </View>
     );
@@ -68,7 +70,9 @@ export default function EditorParticipantScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }, { label: person?.name ?? "Participante" }]} />
+      <View style={styles.topBlock}>
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }, { label: person?.name ?? "Participante" }]} />
+      </View>
       <FlatList
         data={entries}
         keyExtractor={(item) => item.id}
@@ -102,7 +106,8 @@ export default function EditorParticipantScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  list: { padding: spacing.lg },
+  topBlock: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, paddingTop: spacing.xs },
   header: { marginBottom: spacing.lg },
   participantName: { fontSize: 20, fontWeight: "700", color: colors.ink },
   meta: { fontSize: 12, color: colors.slate, marginTop: 4 },
