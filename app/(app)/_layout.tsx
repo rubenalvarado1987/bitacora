@@ -25,7 +25,7 @@ export default function AppLayout() {
         headerStyle: { backgroundColor: colors.paper },
         headerShadowVisible: false,
         headerTintColor: colors.ink,
-        contentStyle: { backgroundColor: colors.paper },
+        contentStyle: { backgroundColor: "transparent" },
       }}
     />
   );

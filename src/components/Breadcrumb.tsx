@@ -1,7 +1,7 @@
 import React, { Fragment } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { colors, spacing } from "../theme";
+import { colors, radius, shadow, spacing } from "../theme";
 import { useAuth } from "../context/AuthContext";
 import AppIcon from "./AppIcon";
 
@@ -21,7 +21,7 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
   const { organization } = useAuth();
 
   return (
-    <View>
+    <View style={styles.bar}>
       {organization?.name ? (
         <View style={styles.orgRow}>
           {organization.logoUrl ? (
@@ -59,6 +59,14 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
 }
 
 const styles = StyleSheet.create({
+  bar: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+    ...shadow.soft,
+  },
   orgRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.sm },
   orgLogo: { width: 24, height: 24, borderRadius: 6 },
   orgLogoPlaceholder: {
