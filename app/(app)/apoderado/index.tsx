@@ -39,8 +39,8 @@ export default function ApoderadoPanelScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.headerPad}>
-        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes" }]} />
-        <Text style={styles.pageTitle}>Mis participantes</Text>
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Participantes" }]} />
+        <Text style={styles.pageTitle}>Participantes</Text>
       </View>
       {loading ? (
         <ActivityIndicator color={colors.teal} style={{ marginTop: spacing.xl }} />

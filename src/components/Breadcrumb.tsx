@@ -121,7 +121,6 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
       <View style={styles.right}>
         <Pressable style={styles.notifPill} hitSlop={6} onPress={() => router.push("/chat" as any)}>
           <AppIcon name="bell-outline" size={15} color={colors.ink} />
-          <Text style={styles.notifLabel}>Notificaciones</Text>
           {unreadCount > 0 ? (
             <View style={styles.notifBadge}>
               <Text style={styles.notifBadgeText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>

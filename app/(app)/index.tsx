@@ -69,11 +69,11 @@ export default function HomeScreen() {
           )}
           {/* Editor / Profesional */}
           {(membership?.role === "editor" || membership?.role === "profesional") && (
-            <NavButton label="Mis participantes" icon="account-group-outline" onPress={() => router.push("/editor" as any)} primary />
+            <NavButton label="Participantes" icon="account-group-outline" onPress={() => router.push("/editor" as any)} primary />
           )}
           {/* Lector / Apoderado */}
           {(membership?.role === "lector" || membership?.role === "lectura") && (
-            <NavButton label="Mis participantes" icon="account-heart-outline" onPress={() => router.push("/apoderado" as any)} primary />
+            <NavButton label="Participantes" icon="account-heart-outline" onPress={() => router.push("/apoderado" as any)} primary />
           )}
           {/* Shared */}
           <NavButton label="Calendario" icon="calendar-month-outline" onPress={() => router.push("/calendario" as any)} />

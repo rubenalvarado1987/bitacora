@@ -110,7 +110,7 @@ export default function EditorNuevoRegistroScreen() {
         <Breadcrumb
           items={[
             { label: "Inicio", href: "/" },
-            { label: "Mis participantes", href: "/editor" },
+            { label: "Participantes", href: "/editor" },
             { label: "Participante", href: id ? `/editor/participante/${id}` : "/editor" },
             { label: "Nuevo registro" },
           ]}

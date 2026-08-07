@@ -13,9 +13,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../../src/firebase";
 import { useAuth } from "../../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../../src/data/entriesRepository";
-import { listenMyProfile } from "../../../../../src/data/adminRepository";
+import { listenMyProfile, listenSalons } from "../../../../../src/data/adminRepository";
 import { colors, spacing } from "../../../../../src/theme";
-import { Entry, Person, ProfileRecord } from "../../../../../src/types";
+import { Entry, Person, ProfileRecord, Salon } from "../../../../../src/types";
 import Breadcrumb from "../../../../../src/components/Breadcrumb";
 import ProfileSidebar from "../../../../../src/components/ProfileSidebar";
 import DailySummaryCard from "../../../../../src/components/DailySummaryCard";
@@ -31,6 +31,7 @@ export default function EditorParticipantScreen() {
   const router = useRouter();
   const [person, setPerson] = useState<Person | null>(null);
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
+  const [salons, setSalons] = useState<Salon[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -61,6 +62,11 @@ export default function EditorParticipantScreen() {
     return listenEntries(membership.organizationId, id, setEntries);
   }, [membership?.organizationId, id, person]);
 
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenSalons(membership.organizationId, setSalons);
+  }, [membership?.organizationId]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -74,7 +80,7 @@ export default function EditorParticipantScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.headerPad}>
-          <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }]} />
+          <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Participantes", href: "/editor" }]} />
         </View>
         <Text style={styles.empty}>No tienes acceso a este participante.</Text>
       </View>
@@ -99,6 +105,10 @@ export default function EditorParticipantScreen() {
     </>
   );
 
+  const assignedSalonNames = (person.salonIds ?? [])
+    .map((salonId) => salons.find((s) => s.id === salonId)?.name)
+    .filter(Boolean) as string[];
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -107,7 +117,7 @@ export default function EditorParticipantScreen() {
         <Breadcrumb
           items={[
             { label: "Inicio", href: "/" },
-            { label: "Mis participantes", href: "/editor" },
+            { label: "Participantes", href: "/editor" },
             { label: person.name },
           ]}
         />
@@ -116,7 +126,7 @@ export default function EditorParticipantScreen() {
       {IS_WIDE ? (
         <View style={styles.twoCol}>
           <View style={styles.sidebarCol}>
-            <ProfileSidebar person={person} />
+            <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
           </View>
           <ScrollView style={styles.mainCol} contentContainerStyle={styles.mainColContent}>
             {timelineContent}
@@ -124,7 +134,7 @@ export default function EditorParticipantScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.singleColContent}>
-          <ProfileSidebar person={person} />
+          <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
           <View>{timelineContent}</View>
         </ScrollView>
       )}

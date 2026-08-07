@@ -11,8 +11,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../src/firebase";
 import { useAuth } from "../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../src/data/entriesRepository";
+import { listenSalons } from "../../../../src/data/adminRepository";
 import { colors, spacing } from "../../../../src/theme";
-import { Entry, Person } from "../../../../src/types";
+import { Entry, Person, Salon } from "../../../../src/types";
 import Breadcrumb from "../../../../src/components/Breadcrumb";
 import ProfileSidebar from "../../../../src/components/ProfileSidebar";
 import DailySummaryCard from "../../../../src/components/DailySummaryCard";
@@ -22,6 +23,7 @@ export default function ApoderadoParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { membership } = useAuth();
   const [person, setPerson] = useState<Person | null>(null);
+  const [salons, setSalons] = useState<Salon[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,6 +46,11 @@ export default function ApoderadoParticipantScreen() {
     return listenEntries(membership.organizationId, id, setEntries);
   }, [membership?.organizationId, id, person]);
 
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenSalons(membership.organizationId, setSalons);
+  }, [membership?.organizationId]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -56,7 +63,7 @@ export default function ApoderadoParticipantScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/apoderado" }]} />
+        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Participantes", href: "/apoderado" }]} />
         <Text style={styles.empty}>No tienes acceso a este participante.</Text>
       </View>
     );
@@ -80,6 +87,10 @@ export default function ApoderadoParticipantScreen() {
     </>
   );
 
+  const assignedSalonNames = (person.salonIds ?? [])
+    .map((salonId) => salons.find((s) => s.id === salonId)?.name)
+    .filter(Boolean) as string[];
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -88,14 +99,14 @@ export default function ApoderadoParticipantScreen() {
         <Breadcrumb
           items={[
             { label: "Inicio", href: "/" },
-            { label: "Mis participantes", href: "/apoderado" },
+            { label: "Participantes", href: "/apoderado" },
             { label: person.name },
           ]}
         />
       </View>
 
       <ScrollView contentContainerStyle={styles.singleColContent}>
-          <ProfileSidebar person={person} />
+          <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
           <View style={styles.timelineWrap}>{timelineContent}</View>
         </ScrollView>
     </View>
