@@ -1,15 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../../src/firebase";
 import { useAuth } from "../../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../../src/data/entriesRepository";
 import { listenMyProfile } from "../../../../../src/data/adminRepository";
-import { EntryCard } from "../../../../../src/components/EntryCard";
 import { colors, spacing } from "../../../../../src/theme";
 import { Entry, Person, ProfileRecord } from "../../../../../src/types";
 import Breadcrumb from "../../../../../src/components/Breadcrumb";
+import ProfileSidebar from "../../../../../src/components/ProfileSidebar";
+import DailySummaryCard from "../../../../../src/components/DailySummaryCard";
+import { TimelineEntryCard } from "../../../../../src/components/TimelineEntryCard";
+import AppIcon from "../../../../../src/components/AppIcon";
+
+const { width } = Dimensions.get("window");
+const IS_WIDE = width >= 640;
 
 export default function EditorParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,7 +64,7 @@ export default function EditorParticipantScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.teal} />
+        <ActivityIndicator color={colors.teal} size="large" />
       </View>
     );
   }
@@ -59,7 +73,7 @@ export default function EditorParticipantScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.topBlock}>
+        <View style={styles.headerPad}>
           <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }]} />
         </View>
         <Text style={styles.empty}>No tienes acceso a este participante.</Text>
@@ -67,93 +81,98 @@ export default function EditorParticipantScreen() {
     );
   }
 
+  const timelineContent = (
+    <>
+      <DailySummaryCard entries={entries} personName={person.name} />
+      <Text style={styles.timelineHeader}>REGISTROS</Text>
+      {entries.length === 0 ? (
+        <Text style={styles.empty}>Todavía no hay registros para este participante.</Text>
+      ) : (
+        entries.map((entry, index) => (
+          <TimelineEntryCard
+            key={entry.id}
+            entry={entry}
+            isLast={index === entries.length - 1}
+          />
+        ))
+      )}
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.topBlock}>
-        <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/editor" }, { label: person?.name ?? "Participante" }]} />
+
+      <View style={styles.headerPad}>
+        <Breadcrumb
+          items={[
+            { label: "Inicio", href: "/" },
+            { label: "Mis participantes", href: "/editor" },
+            { label: person.name },
+          ]}
+        />
       </View>
-      <FlatList
-        data={entries}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          person ? (
-            <View style={styles.header}>
-              <View style={styles.headerRow}>
-                {person.photoUrl ? (
-                  <Image source={{ uri: person.photoUrl }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <Text style={styles.avatarInitials}>{getInitials(person.name)}</Text>
-                  </View>
-                )}
-                <View style={styles.headerInfo}>
-                  <Text style={styles.participantName}>{person.name}</Text>
-                  <Text style={styles.meta}>
-                    {person.status} {person.planId ? `· plan ${person.planId}` : ""}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.timelineLabel}>Registros</Text>
-            </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <Text style={styles.empty}>Todavía no hay registros para este participante.</Text>
-        }
-        renderItem={({ item }) => <EntryCard entry={item} />}
-      />
+
+      {IS_WIDE ? (
+        <View style={styles.twoCol}>
+          <View style={styles.sidebarCol}>
+            <ProfileSidebar person={person} />
+          </View>
+          <ScrollView style={styles.mainCol} contentContainerStyle={styles.mainColContent}>
+            {timelineContent}
+          </ScrollView>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.singleColContent}>
+          <ProfileSidebar person={person} />
+          <View>{timelineContent}</View>
+        </ScrollView>
+      )}
+
       <Pressable
         style={styles.fab}
         onPress={() => router.push(`/editor/participante/${id}/nuevo-registro` as any)}
       >
-        <Text style={styles.fabText}>+</Text>
+        <AppIcon name="plus" size={28} color="#fff" />
       </Pressable>
     </View>
   );
 }
 
-function getInitials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.paper },
+  container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  topBlock: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, paddingTop: spacing.xs },
-  header: { marginBottom: spacing.lg },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  headerInfo: { flex: 1 },
-  avatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: colors.line },
-  avatarPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
-  avatarInitials: { color: colors.tealDark, fontSize: 16, fontWeight: "700" },
-  participantName: { fontSize: 20, fontWeight: "700", color: colors.ink },
-  meta: { fontSize: 12, color: colors.slate, marginTop: 4 },
-  timelineLabel: {
+  headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  twoCol: { flex: 1, flexDirection: "column", paddingHorizontal: spacing.lg },
+  sidebarCol: {},
+  mainCol: { flex: 1 },
+  mainColContent: { paddingBottom: spacing.xl + 80 },
+  singleColContent: { padding: spacing.lg, paddingBottom: spacing.xl + 80, gap: spacing.md },
+  timelineHeader: {
     fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+    fontWeight: "700",
+    letterSpacing: 1.2,
     color: colors.slate,
-    marginTop: spacing.md,
+    textTransform: "uppercase",
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
-  empty: { color: colors.slate, fontSize: 13, textAlign: "center" },
+  empty: { color: colors.slate, fontSize: 13, textAlign: "center", marginTop: spacing.lg },
   fab: {
     position: "absolute",
     right: spacing.lg,
-    bottom: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    bottom: spacing.lg + 16,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.teal,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
-  fabText: { color: "#fff", fontSize: 28, lineHeight: 30 },
 });
+

@@ -1,14 +1,22 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../src/firebase";
 import { useAuth } from "../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../src/data/entriesRepository";
-import { EntryCard } from "../../../../src/components/EntryCard";
 import { colors, spacing } from "../../../../src/theme";
 import { Entry, Person } from "../../../../src/types";
 import Breadcrumb from "../../../../src/components/Breadcrumb";
+import ProfileSidebar from "../../../../src/components/ProfileSidebar";
+import DailySummaryCard from "../../../../src/components/DailySummaryCard";
+import { TimelineEntryCard } from "../../../../src/components/TimelineEntryCard";
 
 export default function ApoderadoParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,10 +33,7 @@ export default function ApoderadoParticipantScreen() {
       );
       if (snap.exists()) {
         const data = { id: snap.id, ...snap.data() } as Person;
-        // Un apoderado solo puede ver la ficha de su propio hijo/a vinculado.
-        if (data.linkedUid && data.linkedUid === membership.uid) {
-          setPerson(data);
-        }
+        if (data.linkedUid && data.linkedUid === membership.uid) setPerson(data);
       }
       setLoading(false);
     })();
@@ -42,7 +47,7 @@ export default function ApoderadoParticipantScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.teal} />
+        <ActivityIndicator color={colors.teal} size="large" />
       </View>
     );
   }
@@ -57,45 +62,68 @@ export default function ApoderadoParticipantScreen() {
     );
   }
 
+  const timelineContent = (
+    <>
+      <DailySummaryCard entries={entries} personName={person.name} />
+      <Text style={styles.timelineHeader}>REGISTROS</Text>
+      {entries.length === 0 ? (
+        <Text style={styles.empty}>No hay registros disponibles aún.</Text>
+      ) : (
+        entries.map((entry, index) => (
+          <TimelineEntryCard
+            key={entry.id}
+            entry={entry}
+            isLast={index === entries.length - 1}
+          />
+        ))
+      )}
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Mis participantes", href: "/apoderado" }, { label: person?.name ?? "Participante" }]} />
-      <FlatList
-        data={entries}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          person ? (
-            <View style={styles.header}>
-              <Text style={styles.name}>{person.name}</Text>
-              <Text style={styles.meta}>{person.status}</Text>
-              <Text style={styles.timelineLabel}>Registros</Text>
-            </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <Text style={styles.empty}>No hay registros disponibles aún.</Text>
-        }
-        renderItem={({ item }) => <EntryCard entry={item} />}
-      />
+
+      <View style={styles.header}>
+        <Breadcrumb
+          items={[
+            { label: "Inicio", href: "/" },
+            { label: "Mis participantes", href: "/apoderado" },
+            { label: person.name },
+          ]}
+        />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.singleColContent}>
+          <ProfileSidebar person={person} />
+          <View style={styles.timelineWrap}>{timelineContent}</View>
+        </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.paper },
+  container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  list: { padding: spacing.lg },
-  header: { marginBottom: spacing.lg },
-  name: { fontSize: 20, fontWeight: "700", color: colors.ink },
-  meta: { fontSize: 12, color: colors.slate, marginTop: 4 },
-  timelineLabel: {
+  // --- Header ---
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  // --- Layouts ---
+  twoCol: {},
+  sidebarCol: {},
+  mainCol: {},
+  mainColContent: {},
+  singleColContent: { padding: spacing.lg, paddingBottom: spacing.xl + 80, gap: spacing.md },
+  timelineWrap: {},
+  // --- Timeline section header ---
+  timelineHeader: {
     fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+    fontWeight: "700",
+    letterSpacing: 1.2,
     color: colors.slate,
-    marginTop: spacing.md,
+    textTransform: "uppercase",
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
-  empty: { color: colors.slate, fontSize: 13, textAlign: "center" },
+  empty: { fontSize: 13, color: colors.slate, textAlign: "center", marginTop: spacing.lg },
 });
+
