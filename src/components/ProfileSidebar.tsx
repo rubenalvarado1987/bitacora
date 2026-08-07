@@ -124,9 +124,9 @@ const styles = StyleSheet.create({
   // --- Columna avatar ---
   avatarCol: { alignItems: "center", width: 90 },
   avatarWrap: { position: "relative", marginBottom: spacing.xs },
-  avatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 3, borderColor: "#fff" },
+  avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: "#fff" },
   avatarPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
-  avatarInitials: { fontSize: 20, fontWeight: "700", color: colors.tealDark },
+  avatarInitials: { fontSize: 22, fontWeight: "700", color: colors.tealDark },
   onlineDot: {
     position: "absolute",
     bottom: 2,
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     marginLeft: -7,
   },
-  photo: { width: 46, height: 46, borderRadius: 8, marginRight: spacing.xs },
+  photo: { width: 62, height: 62, borderRadius: 10, marginRight: spacing.xs },
   photoPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
   badgesRow: { flexDirection: "row", gap: 6, marginTop: spacing.xs, flexWrap: "wrap" },
   badgeCircle: {

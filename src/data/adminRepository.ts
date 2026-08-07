@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   EconomicPlan,
@@ -134,6 +134,18 @@ export function listenMyProfile(
   const q = query(collection(db, "organizations", organizationId, "profiles"), where("linkedUid", "==", uid));
   return onSnapshot(q, (snapshot) => {
     onChange(snapshot.empty ? null : ({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ProfileRecord));
+  });
+}
+
+// Participante/apoderado con cuenta vinculada (linkedUid): permite usar su foto/nombre en UI común.
+export function listenMyParticipant(
+  organizationId: string,
+  uid: string,
+  onChange: (participant: Person | null) => void
+) {
+  const q = query(collection(db, "organizations", organizationId, "people"), where("linkedUid", "==", uid));
+  return onSnapshot(q, (snapshot) => {
+    onChange(snapshot.empty ? null : ({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Person));
   });
 }
 

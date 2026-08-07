@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -91,6 +92,88 @@ export function listenMessages(
   return onSnapshot(q, (snap) =>
     onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage)))
   );
+}
+
+export function listenUnreadThreadCount(
+  organizationId: string,
+  uid: string,
+  role: string,
+  onChange: (count: number) => void
+) {
+  const threadById = new Map<string, ChatThread>();
+  const latestMessageMs = new Map<string, number | null>();
+  const unsubByThreadId = new Map<string, () => void>();
+
+  const getTimestampMs = (value: any): number | null => {
+    if (!value) return null;
+    if (typeof value.toMillis === "function") return value.toMillis();
+    if (value instanceof Date) return value.getTime();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.getTime();
+  };
+
+  const emitUnreadCount = () => {
+    let count = 0;
+    for (const [threadId, thread] of threadById.entries()) {
+      const messageMs = latestMessageMs.get(threadId) ?? null;
+      if (!messageMs) continue;
+      const readMs = getTimestampMs(thread.readBy?.[uid]);
+      if (!readMs || messageMs > readMs) {
+        count += 1;
+      }
+    }
+    onChange(count);
+  };
+
+  const unsubscribeThreads = listenThreads(organizationId, uid, role, (threads) => {
+    const activeIds = new Set(threads.map((t) => t.id));
+
+    for (const threadId of threadById.keys()) {
+      if (!activeIds.has(threadId)) {
+        threadById.delete(threadId);
+        latestMessageMs.delete(threadId);
+        const unsub = unsubByThreadId.get(threadId);
+        if (unsub) unsub();
+        unsubByThreadId.delete(threadId);
+      }
+    }
+
+    for (const thread of threads) {
+      threadById.set(thread.id, thread);
+      if (unsubByThreadId.has(thread.id)) continue;
+
+      const q = query(
+        collection(db, "organizations", organizationId, "chatThreads", thread.id, "messages"),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          const latest = snap.docs[0]?.data();
+          latestMessageMs.set(thread.id, getTimestampMs(latest?.createdAt));
+          emitUnreadCount();
+        },
+        (error) => {
+          console.error("listenUnreadThreadCount error:", error.code, error.message);
+          latestMessageMs.set(thread.id, null);
+          emitUnreadCount();
+        }
+      );
+
+      unsubByThreadId.set(thread.id, unsub);
+    }
+
+    emitUnreadCount();
+  });
+
+  return () => {
+    unsubscribeThreads();
+    for (const unsub of unsubByThreadId.values()) {
+      unsub();
+    }
+  };
 }
 
 export async function sendMessage(params: {
