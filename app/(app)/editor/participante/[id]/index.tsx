@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../../src/firebase";
 import { useAuth } from "../../../../../src/context/AuthContext";
@@ -20,15 +18,10 @@ import Breadcrumb from "../../../../../src/components/Breadcrumb";
 import ProfileSidebar from "../../../../../src/components/ProfileSidebar";
 import DailySummaryCard from "../../../../../src/components/DailySummaryCard";
 import { TimelineEntryCard } from "../../../../../src/components/TimelineEntryCard";
-import AppIcon from "../../../../../src/components/AppIcon";
-
-const { width } = Dimensions.get("window");
-const IS_WIDE = width >= 640;
 
 export default function EditorParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { membership } = useAuth();
-  const router = useRouter();
   const [person, setPerson] = useState<Person | null>(null);
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
@@ -79,7 +72,7 @@ export default function EditorParticipantScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.headerPad}>
+        <View style={styles.header}>
           <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Participantes", href: "/editor" }]} />
         </View>
         <Text style={styles.empty}>No tienes acceso a este participante.</Text>
@@ -113,7 +106,7 @@ export default function EditorParticipantScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.headerPad}>
+      <View style={styles.header}>
         <Breadcrumb
           items={[
             { label: "Inicio", href: "/" },
@@ -123,28 +116,10 @@ export default function EditorParticipantScreen() {
         />
       </View>
 
-      {IS_WIDE ? (
-        <View style={styles.twoCol}>
-          <View style={styles.sidebarCol}>
-            <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
-          </View>
-          <ScrollView style={styles.mainCol} contentContainerStyle={styles.mainColContent}>
-            {timelineContent}
-          </ScrollView>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.singleColContent}>
-          <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
-          <View>{timelineContent}</View>
-        </ScrollView>
-      )}
-
-      <Pressable
-        style={styles.fab}
-        onPress={() => router.push(`/editor/participante/${id}/nuevo-registro` as any)}
-      >
-        <AppIcon name="plus" size={28} color="#fff" />
-      </Pressable>
+      <ScrollView contentContainerStyle={styles.singleColContent}>
+        <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
+        <View style={styles.timelineWrap}>{timelineContent}</View>
+      </ScrollView>
     </View>
   );
 }
@@ -152,12 +127,9 @@ export default function EditorParticipantScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  twoCol: { flex: 1, flexDirection: "column", paddingHorizontal: spacing.lg },
-  sidebarCol: {},
-  mainCol: { flex: 1 },
-  mainColContent: { paddingBottom: spacing.xl + 80 },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   singleColContent: { padding: spacing.lg, paddingBottom: spacing.xl + 80, gap: spacing.md },
+  timelineWrap: {},
   timelineHeader: {
     fontSize: 11,
     fontWeight: "700",
@@ -168,21 +140,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   empty: { color: colors.slate, fontSize: 13, textAlign: "center", marginTop: spacing.lg },
-  fab: {
-    position: "absolute",
-    right: spacing.lg,
-    bottom: spacing.lg + 16,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.teal,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
 });
 
