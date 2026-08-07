@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../../src/firebase";
 import { useAuth } from "../../../../../src/context/AuthContext";
@@ -18,10 +19,12 @@ import Breadcrumb from "../../../../../src/components/Breadcrumb";
 import ProfileSidebar from "../../../../../src/components/ProfileSidebar";
 import DailySummaryCard from "../../../../../src/components/DailySummaryCard";
 import { TimelineEntryCard } from "../../../../../src/components/TimelineEntryCard";
+import AppIcon from "../../../../../src/components/AppIcon";
 
 export default function EditorParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { membership } = useAuth();
+  const router = useRouter();
   const [person, setPerson] = useState<Person | null>(null);
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
@@ -120,6 +123,13 @@ export default function EditorParticipantScreen() {
         <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
         <View style={styles.timelineWrap}>{timelineContent}</View>
       </ScrollView>
+
+      <Pressable
+        style={styles.fab}
+        onPress={() => router.push(`/editor/participante/${id}/nuevo-registro` as any)}
+      >
+        <AppIcon name="plus" size={28} color="#fff" />
+      </Pressable>
     </View>
   );
 }
@@ -140,5 +150,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   empty: { color: colors.slate, fontSize: 13, textAlign: "center", marginTop: spacing.lg },
+  fab: {
+    position: "absolute",
+    right: spacing.lg,
+    bottom: spacing.lg + 16,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.teal,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
 });
 
