@@ -69,7 +69,10 @@ export default function HomeScreen() {
           )}
           {/* Editor / Profesional */}
           {(membership?.role === "editor" || membership?.role === "profesional") && (
-            <NavButton label="Participantes" icon="account-group-outline" onPress={() => router.push("/editor" as any)} primary />
+            <>
+              <NavButton label="Participantes" icon="account-group-outline" onPress={() => router.push("/editor" as any)} primary />
+              <NavButton label="Nueva Bitácora" icon="note-plus-outline" onPress={() => router.push("/editor" as any)} />
+            </>
           )}
           {/* Lector / Apoderado */}
           {(membership?.role === "lector" || membership?.role === "lectura") && (
