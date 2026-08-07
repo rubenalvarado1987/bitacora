@@ -4,14 +4,31 @@ import { TemplateField } from "../types";
 import { colors, radius, spacing } from "../theme";
 import DateField from "./DateField";
 import DropdownSelect from "./DropdownSelect";
+import AppIcon from "./AppIcon";
+import { getFieldIconName } from "../data/fichaIcons";
 import { formatRut, isRutField, isValidRut } from "../utils/rut";
 import { isEmailField, isValidEmail } from "../utils/email";
 
+function analyzeFieldState(field: TemplateField, value: string | number | undefined) {
+  const isRut = field.type === "text" && isRutField(field.id || field.label);
+  const rutValue = value !== undefined ? String(value) : "";
+  const rutInvalid = isRut && rutValue.trim().length > 0 && !isValidRut(rutValue);
+
+  const isEmail = field.type === "text" && !isRut && isEmailField(field.id || field.label);
+  const emailValue = value !== undefined ? String(value) : "";
+  const emailInvalid = isEmail && emailValue.trim().length > 0 && !isValidEmail(emailValue);
+
+  return { isRut, rutValue, rutInvalid, isEmail, emailValue, emailInvalid };
+}
+
 // Fila de solo lectura, usada para mostrar los datos base de una ficha.
-export function FieldDisplay({ label, value }: { label: string; value: string | number | boolean | undefined }) {
+export function FieldDisplay({ label, value }: Readonly<{ label: string; value: string | number | boolean | undefined }>) {
   return (
     <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.labelRow}>
+        <AppIcon name={getFieldIconName({ id: label, label, type: "text" })} size={16} />
+        <Text style={styles.label}>{label}</Text>
+      </View>
       <Text style={styles.value}>{value === undefined || value === "" ? "—" : String(value)}</Text>
     </View>
   );
@@ -25,25 +42,23 @@ export function FieldInput({
   field,
   value,
   onChange,
-}: {
+}: Readonly<{
   field: TemplateField;
   value: string | number | undefined;
   onChange: (value: string | number) => void;
-}) {
-  const isRut = field.type === "text" && isRutField(field.id || field.label);
-  const rutValue = value !== undefined ? String(value) : "";
-  const rutInvalid = isRut && rutValue.trim().length > 0 && !isValidRut(rutValue);
-
-  const isEmail = field.type === "text" && !isRut && isEmailField(field.id || field.label);
-  const emailValue = value !== undefined ? String(value) : "";
-  const emailInvalid = isEmail && emailValue.trim().length > 0 && !isValidEmail(emailValue);
+}>) {
+  const { isRut, rutValue, rutInvalid, isEmail, emailValue, emailInvalid } =
+    analyzeFieldState(field, value);
 
   return (
     <View style={styles.inputBlock}>
-      <Text style={styles.inputLabel}>
-        {field.label}
-        {field.required ? " *" : ""}
-      </Text>
+      <View style={styles.inputLabelRow}>
+        <AppIcon name={getFieldIconName(field)} size={16} />
+        <Text style={styles.inputLabel}>
+          {field.label}
+          {field.required ? " *" : ""}
+        </Text>
+      </View>
 
       {isRut && (
         <TextInput
@@ -152,7 +167,9 @@ const styles = StyleSheet.create({
   value: { fontSize: 13, color: colors.ink, fontWeight: "500" },
 
   inputBlock: { marginBottom: spacing.md },
-  inputLabel: { fontSize: 12, color: colors.slate, marginBottom: spacing.xs },
+  labelRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  inputLabelRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.xs, gap: spacing.xs },
+  inputLabel: { fontSize: 12, color: colors.slate },
   textInput: {
     borderWidth: 1,
     borderColor: colors.line,

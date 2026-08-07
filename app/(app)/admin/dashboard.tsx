@@ -57,7 +57,7 @@ export default function AdminDashboardScreen() {
           <View style={styles.statsRow}>
             <StatCard label="Participantes" value={stats?.participants ?? 0} />
             <StatCard label="Salones" value={stats?.salons ?? 0} />
-            <StatCard label="Perfiles" value={stats?.profiles ?? 0} />
+            <StatCard label="Profesionales" value={stats?.profiles ?? 0} />
           </View>
 
           <Text style={[styles.sectionLabel, { marginTop: spacing.lg }]}>

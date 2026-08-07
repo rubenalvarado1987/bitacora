@@ -16,7 +16,7 @@ const cards: Array<{
   { href: "/admin/organizacion", title: "Organización", icon: "domain", body: "Nombre y logo de la organización, visibles en toda la app." },
   { href: "/admin/salones", title: "Salones", icon: "door", body: "Crear salones y asignar participantes y profesionales." },
   { href: "/admin/planes", title: "Planes económicos", icon: "cash-multiple", body: "Registrar planes y asociarlos a participantes." },
-  { href: "/admin/perfiles", title: "Perfiles", icon: "account-tie", body: "Crear y editar Editor, Lector y perfiles participantes." },
+  { href: "/admin/profesionales", title: "Profesionales", icon: "account-tie", body: "Crear y editar Editor, Lector y perfiles de profesionales." },
   { href: "/admin/participantes", title: "Participantes", icon: "account-group", body: "Alta, edición y ficha técnica del participante." },
 ];
 

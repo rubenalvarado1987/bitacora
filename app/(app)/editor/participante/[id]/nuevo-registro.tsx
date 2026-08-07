@@ -13,6 +13,8 @@ import { listenParticipants } from "../../../../../src/data/adminRepository";
 import { createEntryBulk, EntryDraft } from "../../../../../src/data/entriesRepository";
 import { entryTemplateSections } from "../../../../../src/data/businessCatalog";
 import { FieldInput } from "../../../../../src/components/SectionField";
+import AppIcon from "../../../../../src/components/AppIcon";
+import { getSectionIconName } from "../../../../../src/data/sectionIcons";
 import { colors, radius, spacing } from "../../../../../src/theme";
 import { Person } from "../../../../../src/types";
 import { showAlert } from "../../../../../src/utils/alert";
@@ -96,6 +98,11 @@ export default function EditorNuevoRegistroScreen() {
               onPress={() => { setActiveSectionId(s.id); setValues({}); }}
               style={[styles.chip, activeSectionId === s.id && styles.chipActive]}
             >
+              <AppIcon
+                name={getSectionIconName(s.id ?? s.title)}
+                size={16}
+                color={activeSectionId === s.id ? colors.tealDark : colors.slate}
+              />
               <Text style={[styles.chipText, activeSectionId === s.id && styles.chipTextActive]}>
                 {s.title}
               </Text>
@@ -165,9 +172,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginRight: spacing.sm,
     backgroundColor: colors.paper,
+    flexDirection: "row",
+    alignItems: "center",
   },
   chipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
-  chipText: { fontSize: 13, color: colors.slate, fontWeight: "600" },
+  chipText: { fontSize: 13, color: colors.slate, fontWeight: "600", marginLeft: 8 },
   chipTextActive: { color: colors.tealDark },
   fieldsCard: {
     backgroundColor: colors.card,

@@ -34,7 +34,7 @@ export default function HomeScreen() {
     () => [
       { key: "salones", label: "Salones", done: salons.length > 0, href: "/admin/salones" },
       { key: "planes", label: "Planes económicos", done: plans.length > 0, href: "/admin/planes" },
-      { key: "profesionales", label: "Profesionales", done: profiles.some((p) => p.role === "editor"), href: "/admin/perfiles" },
+      { key: "profesionales", label: "Profesionales", done: profiles.some((p) => p.role === "editor"), href: "/admin/profesionales" },
       { key: "participantes", label: "Participantes", done: participants.length > 0, href: "/admin/participantes" },
     ],
     [profiles, participants, salons, plans]
