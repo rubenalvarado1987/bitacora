@@ -22,7 +22,7 @@ interface DateFieldProps {
 export default function DateField({ value, onChange, placeholder = "Seleccionar fecha" }: DateFieldProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"days" | "years">("days");
-  const [cursor, setCursor] = useState(() => parseISODate(value) ?? new Date(DEFAULT_YEAR, 0, 1));
+  const [cursor, setCursor] = useState(() => parseISODate(value) ?? new Date());
 
   const years = React.useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -30,7 +30,7 @@ export default function DateField({ value, onChange, placeholder = "Seleccionar 
   }, []);
 
   const openPicker = () => {
-    setCursor(parseISODate(value) ?? new Date(DEFAULT_YEAR, 0, 1));
+    setCursor(parseISODate(value) ?? new Date());
     setMode("days");
     setOpen(true);
   };

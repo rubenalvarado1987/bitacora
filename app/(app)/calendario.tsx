@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import { Stack } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { showAlert } from "../../src/utils/alert";
 import Breadcrumb from "../../src/components/Breadcrumb";
+import AppIcon from "../../src/components/AppIcon";
 import {
   CalendarEventDraft,
   eventOccursOnDate,
@@ -73,11 +75,12 @@ export default function CalendarioScreen() {
   const [viewMode, setViewMode] = useState<"mensual" | "diaria">("mensual");
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(todayISODate());
-  const [filter, setFilter] = useState<string>("todos");
+  const [filter, setFilter] = useState<string>("global");
   const [draft, setDraft] = useState<CalendarEventDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -132,20 +135,18 @@ export default function CalendarioScreen() {
   const filterChips = useMemo(() => {
     const chips: { key: string; label: string }[] = [{ key: "global", label: "Global" }];
     visibleSalons.forEach((s) => chips.push({ key: s.id, label: s.name }));
-    if (chips.length > 1) chips.unshift({ key: "todos", label: "Todos" });
     return chips;
   }, [visibleSalons]);
 
   useEffect(() => {
     if (!filterChips.some((c) => c.key === filter)) {
-      setFilter(filterChips[0]?.key ?? "todos");
+      setFilter("global");
     }
   }, [filterChips, filter]);
 
   const filteredEvents = useMemo(() => {
-    if (filter === "todos") return visibleEvents;
-    if (filter === "global") return visibleEvents.filter((e) => e.scope === "global");
-    return visibleEvents.filter((e) => e.scope === "salon" && e.salonId === filter);
+    if (filter === "global") return visibleEvents;
+    return visibleEvents.filter((e) => e.scope === "global" || (e.scope === "salon" && e.salonId === filter));
   }, [visibleEvents, filter]);
 
   const selectedDayEvents = useMemo(() => {
@@ -187,11 +188,17 @@ export default function CalendarioScreen() {
 
   const openNewForm = () => {
     setEditingId(null);
+    const filterIsSalon = filter !== "global";
+    // Editores no pueden crear eventos globales; si el filtro activo es global, se les asigna su primer salón.
+    const scope: "global" | "salon" = isEditorRole ? "salon" : filterIsSalon ? "salon" : "global";
+    const salonId = filterIsSalon
+      ? (isEditorRole && !visibleSalonIds.has(filter) ? visibleSalons[0]?.id : filter)
+      : isEditorRole ? visibleSalons[0]?.id : undefined;
     setDraft({
       ...emptyDraft,
       date: selectedDate,
-      scope: isEditorRole ? "salon" : "global",
-      salonId: isEditorRole ? visibleSalons[0]?.id : undefined,
+      scope,
+      salonId,
     });
     setShowForm(true);
   };
@@ -254,32 +261,41 @@ export default function CalendarioScreen() {
     setShowForm(true);
   };
 
-  const handleDelete = async (eventId: string) => {
-    if (!membership?.organizationId) return;
-    await removeCalendarEvent(membership.organizationId, eventId);
-    if (editingId === eventId) resetForm();
+  const confirmDelete = (eventId: string) => setConfirmDeleteId(eventId);
+
+  const handleDelete = async () => {
+    if (!membership?.organizationId || !confirmDeleteId) return;
+    const idToDelete = confirmDeleteId;
+    setConfirmDeleteId(null);
+    await removeCalendarEvent(membership.organizationId, idToDelete);
+    if (editingId === idToDelete) resetForm();
   };
 
   const salonName = (id?: string) => allSalons.find((s) => s.id === id)?.name ?? "Salón";
+  const DEFAULT_SALON_COLOR = "#1F6F6B"; // teal — igual al color de salón por defecto
+  const salonColor = (id?: string) => allSalons.find((s) => s.id === id)?.color || DEFAULT_SALON_COLOR;
+  const salonTint = (id?: string) => salonColor(id) + "26"; // ~15% opacidad
 
   const renderEventCard = (e: CalendarEvent) => (
-    <View key={e.id} style={styles.eventCard}>
+    <View key={e.id} style={[styles.eventCard, { borderLeftWidth: 3, borderLeftColor: e.scope === "global" ? colors.amber : salonColor(e.salonId) }]}>
       <View style={styles.eventHeader}>
         <Text style={styles.eventTitle}>{e.title}</Text>
-        <View style={styles.scopeBadge}>
-          <Text style={styles.scopeBadgeText}>{e.scope === "global" ? "Global" : salonName(e.salonId)}</Text>
+        <View style={[styles.scopeBadge, { backgroundColor: e.scope === "global" ? colors.amberTint : salonTint(e.salonId) }]}>
+          <Text style={[styles.scopeBadgeText, { color: e.scope === "global" ? colors.amber : salonColor(e.salonId) }]}>
+            {e.scope === "global" ? "Global" : salonName(e.salonId)}
+          </Text>
         </View>
       </View>
       <View
         style={[
           styles.eventTimeChip,
-          e.scope === "global" ? styles.eventTimeChipGlobal : styles.eventTimeChipSalon,
+          e.scope === "global" ? styles.eventTimeChipGlobal : { backgroundColor: salonTint(e.salonId) },
         ]}
       >
         <Text
           style={[
             styles.eventTimeChipText,
-            e.scope === "global" ? styles.eventTimeChipTextGlobal : styles.eventTimeChipTextSalon,
+            e.scope === "global" ? styles.eventTimeChipTextGlobal : { color: salonColor(e.salonId) },
           ]}
         >
           {e.startTime ? `${e.startTime}${e.endTime ? ` – ${e.endTime}` : ""}` : "Todo el día"}
@@ -292,8 +308,12 @@ export default function CalendarioScreen() {
       {e.description ? <Text style={styles.eventMeta}>{e.description}</Text> : null}
       {canManageEvent(e) ? (
         <View style={styles.actionsRow}>
-          <Pressable onPress={() => startEdit(e)}><Text style={styles.actionLink}>Editar</Text></Pressable>
-          <Pressable onPress={() => handleDelete(e.id)}><Text style={styles.actionDanger}>Eliminar</Text></Pressable>
+          <Pressable onPress={() => startEdit(e)} hitSlop={8} style={[styles.iconBtn, { borderColor: e.scope === "global" ? colors.amber : salonColor(e.salonId) }]}>
+            <AppIcon name="pencil-outline" size={15} color={e.scope === "global" ? colors.amber : salonColor(e.salonId)} />
+          </Pressable>
+          <Pressable onPress={() => confirmDelete(e.id)} hitSlop={8} style={[styles.iconBtn, { borderColor: colors.ink }]}>
+            <AppIcon name="trash-can-outline" size={15} color={colors.ink} />
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -302,6 +322,25 @@ export default function CalendarioScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Modal de confirmación de eliminación */}
+      <Modal visible={!!confirmDeleteId} transparent animationType="fade" onRequestClose={() => setConfirmDeleteId(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setConfirmDeleteId(null)}>
+          <Pressable style={styles.confirmCard} onPress={() => {}}>
+            <AppIcon name="trash-can-outline" size={32} color={colors.danger} />
+            <Text style={styles.confirmTitle}>¿Eliminar evento?</Text>
+            <Text style={styles.confirmBody}>Esta acción no se puede deshacer.</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => setConfirmDeleteId(null)}>
+                <Text style={styles.confirmCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.confirmDelete} onPress={handleDelete}>
+                <Text style={styles.confirmDeleteText}>Eliminar</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <ScrollView contentContainerStyle={styles.content}>
         <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Calendario" }]} />
 
@@ -322,15 +361,23 @@ export default function CalendarioScreen() {
 
         {/* Filtro por salón / global */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {filterChips.map((chip) => (
-            <Pressable
-              key={chip.key}
-              onPress={() => setFilter(chip.key)}
-              style={[styles.filterChip, filter === chip.key && styles.filterChipActive]}
-            >
-              <Text style={[styles.filterText, filter === chip.key && styles.filterTextActive]}>{chip.label}</Text>
-            </Pressable>
-          ))}
+          {filterChips.map((chip) => {
+            const isActive = filter === chip.key;
+            const chipColor = chip.key === "global" ? colors.amber : salonColor(chip.key);
+            const chipTint = chip.key === "global" ? colors.amberTint : salonTint(chip.key);
+            return (
+              <Pressable
+                key={chip.key}
+                onPress={() => setFilter(chip.key)}
+                style={[
+                  styles.filterChip,
+                  isActive && { backgroundColor: chipTint, borderColor: chipColor },
+                ]}
+              >
+                <Text style={[styles.filterText, isActive && { color: chipColor }]}>{chip.label}</Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
         {/* Encabezado compartido: fecha seleccionada + acción de agregar */}
@@ -341,74 +388,92 @@ export default function CalendarioScreen() {
             <Text style={styles.selectedTitle}>Actividades</Text>
           )}
           {canEdit ? (
-            <Pressable onPress={() => (showForm ? resetForm() : openNewForm())} style={styles.addButton}>
-              <Text style={styles.addButtonText}>{showForm ? "Cancelar" : "+ Agregar"}</Text>
+            <Pressable onPress={openNewForm} style={styles.addButton}>
+              <Text style={styles.addButtonText}>+ Agregar</Text>
             </Pressable>
           ) : null}
         </View>
 
-        {showForm && canEdit ? (
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>{editingId ? "Editar evento" : "Nuevo evento"}</Text>
-            <TextInput value={draft.title} onChangeText={(v) => setDraft({ ...draft, title: v })} placeholder="Título" style={styles.input} />
+        <Modal
+          visible={showForm && canEdit}
+          transparent
+          animationType="fade"
+          onRequestClose={resetForm}
+        >
+          {/* Overlay: tap fuera cierra el modal */}
+          <Pressable style={styles.modalOverlay} onPress={resetForm}>
+            {/* Tarjeta: tap adentro no cierra */}
+            <Pressable style={styles.modalCard} onPress={() => {}}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {/* Encabezado del modal */}
+                <View style={styles.modalHeader}>
+                  <Text style={styles.formTitle}>{editingId ? "Editar evento" : "Nuevo evento"}</Text>
+                  <Pressable onPress={resetForm} style={styles.modalCloseBtn} hitSlop={8}>
+                    <Text style={styles.modalCloseText}>✕</Text>
+                  </Pressable>
+                </View>
 
-            <View style={styles.scopeRow}>
-              {RECURRENCE_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt.key}
-                  onPress={() => setDraft({ ...draft, recurrence: opt.key })}
-                  style={[styles.scopeChip, draft.recurrence === opt.key && styles.scopeChipActive]}
-                >
-                  <Text style={[styles.scopeText, draft.recurrence === opt.key && styles.scopeTextActive]}>{opt.label}</Text>
+                <TextInput value={draft.title} onChangeText={(v) => setDraft({ ...draft, title: v })} placeholder="Título" style={styles.input} />
+
+                <View style={styles.scopeRow}>
+                  {RECURRENCE_OPTIONS.map((opt) => (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => setDraft({ ...draft, recurrence: opt.key })}
+                      style={[styles.scopeChip, draft.recurrence === opt.key && styles.scopeChipActive]}
+                    >
+                      <Text style={[styles.scopeText, draft.recurrence === opt.key && styles.scopeTextActive]}>{opt.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {draft.recurrence !== "daily" ? (
+                  <DateField
+                    value={draft.date}
+                    onChange={(v) => setDraft({ ...draft, date: v })}
+                    placeholder={draft.recurrence === "range" ? "Desde (DD-MM-AAAA)" : "Fecha (DD-MM-AAAA)"}
+                  />
+                ) : null}
+                {draft.recurrence === "range" ? (
+                  <DateField value={draft.endDate ?? ""} onChange={(v) => setDraft({ ...draft, endDate: v })} placeholder="Hasta (DD-MM-AAAA)" />
+                ) : null}
+
+                <View style={styles.timeRow}>
+                  <View style={styles.timeField}>
+                    <Text style={styles.fieldLabel}>Hora inicio</Text>
+                    <TimeField value={draft.startTime ?? ""} onChange={(v) => setDraft({ ...draft, startTime: v })} placeholder="Inicio" />
+                  </View>
+                  <View style={styles.timeField}>
+                    <Text style={styles.fieldLabel}>Hora fin</Text>
+                    <TimeField value={draft.endTime ?? ""} onChange={(v) => setDraft({ ...draft, endTime: v })} placeholder="Fin" />
+                  </View>
+                </View>
+
+                <TextInput value={draft.description ?? ""} onChangeText={(v) => setDraft({ ...draft, description: v })} placeholder="Descripción" style={styles.input} />
+                {isAdmin ? (
+                  <View style={styles.scopeRow}>
+                    {(["global", "salon"] as const).map((s) => (
+                      <Pressable key={s} onPress={() => setDraft({ ...draft, scope: s })} style={[styles.scopeChip, draft.scope === s && styles.scopeChipActive]}>
+                        <Text style={[styles.scopeText, draft.scope === s && styles.scopeTextActive]}>{s === "global" ? "Global" : "Por salón"}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                {draft.scope === "salon" ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
+                    {(isAdmin ? allSalons : visibleSalons).map((s) => (
+                      <Pressable key={s.id} onPress={() => setDraft({ ...draft, salonId: s.id })} style={[styles.scopeChip, draft.salonId === s.id && styles.scopeChipActive]}>
+                        <Text style={[styles.scopeText, draft.salonId === s.id && styles.scopeTextActive]}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : null}
+                <Pressable onPress={handleSave} disabled={saving} style={[styles.saveButton, saving && styles.saveButtonDisabled]}>
+                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Guardar</Text>}
                 </Pressable>
-              ))}
-            </View>
-            {draft.recurrence !== "daily" ? (
-              <DateField
-                value={draft.date}
-                onChange={(v) => setDraft({ ...draft, date: v })}
-                placeholder={draft.recurrence === "range" ? "Desde (DD-MM-AAAA)" : "Fecha (DD-MM-AAAA)"}
-              />
-            ) : null}
-            {draft.recurrence === "range" ? (
-              <DateField value={draft.endDate ?? ""} onChange={(v) => setDraft({ ...draft, endDate: v })} placeholder="Hasta (DD-MM-AAAA)" />
-            ) : null}
-
-            <View style={styles.timeRow}>
-              <View style={styles.timeField}>
-                <Text style={styles.fieldLabel}>Hora inicio</Text>
-                <TimeField value={draft.startTime ?? ""} onChange={(v) => setDraft({ ...draft, startTime: v })} placeholder="Inicio" />
-              </View>
-              <View style={styles.timeField}>
-                <Text style={styles.fieldLabel}>Hora fin</Text>
-                <TimeField value={draft.endTime ?? ""} onChange={(v) => setDraft({ ...draft, endTime: v })} placeholder="Fin" />
-              </View>
-            </View>
-
-            <TextInput value={draft.description ?? ""} onChangeText={(v) => setDraft({ ...draft, description: v })} placeholder="Descripción" style={styles.input} />
-            {isAdmin ? (
-              <View style={styles.scopeRow}>
-                {(["global", "salon"] as const).map((s) => (
-                  <Pressable key={s} onPress={() => setDraft({ ...draft, scope: s })} style={[styles.scopeChip, draft.scope === s && styles.scopeChipActive]}>
-                    <Text style={[styles.scopeText, draft.scope === s && styles.scopeTextActive]}>{s === "global" ? "Global" : "Por salón"}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            {draft.scope === "salon" ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
-                {(isAdmin ? allSalons : visibleSalons).map((s) => (
-                  <Pressable key={s.id} onPress={() => setDraft({ ...draft, salonId: s.id })} style={[styles.scopeChip, draft.salonId === s.id && styles.scopeChipActive]}>
-                    <Text style={[styles.scopeText, draft.salonId === s.id && styles.scopeTextActive]}>{s.name}</Text>
-                  </Pressable>
-                ))}
               </ScrollView>
-            ) : null}
-            <Pressable onPress={handleSave} disabled={saving} style={[styles.saveButton, saving && styles.saveButtonDisabled]}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Guardar</Text>}
             </Pressable>
-          </View>
-        ) : null}
+          </Pressable>
+        </Modal>
 
         {viewMode === "mensual" ? (
           <>
@@ -492,15 +557,19 @@ export default function CalendarioScreen() {
                             <View
                               style={[
                                 styles.dayEventTimeChip,
-                                e.scope === "global" ? styles.dayEventTimeChipGlobal : styles.dayEventTimeChipSalon,
-                                isSelected && styles.dayEventTimeChipSelected,
+                                e.scope === "global"
+                                  ? styles.dayEventTimeChipGlobal
+                                  : { backgroundColor: isSelected ? "rgba(255,255,255,0.25)" : salonTint(e.salonId) },
+                                isSelected && e.scope === "global" && styles.dayEventTimeChipSelected,
                               ]}
                             >
                               <Text
                                 style={[
                                   styles.dayEventTimeChipText,
-                                  e.scope === "global" ? styles.dayEventTimeChipTextGlobal : styles.dayEventTimeChipTextSalon,
-                                  isSelected && styles.dayEventTimeChipTextSelected,
+                                  e.scope === "global"
+                                    ? styles.dayEventTimeChipTextGlobal
+                                    : { color: isSelected ? "#fff" : salonColor(e.salonId) },
+                                  isSelected && e.scope === "global" && styles.dayEventTimeChipTextSelected,
                                 ]}
                               >
                                 {e.startTime}{e.endTime ? `–${e.endTime}` : ""}
@@ -511,11 +580,13 @@ export default function CalendarioScreen() {
                             numberOfLines={1}
                             style={[
                               styles.dayEventTitle,
-                              e.scope === "global" ? styles.dayEventTitleGlobal : styles.dayEventTitleSalon,
-                              isSelected && styles.dayEventTitleSelected,
+                              e.scope === "global"
+                                ? styles.dayEventTitleGlobal
+                                : { color: isSelected ? "#fff" : salonColor(e.salonId) },
+                              isSelected && e.scope === "global" && styles.dayEventTitleSelected,
                             ]}
                           >
-                            {e.title}
+                            {filter === "global" && e.scope === "salon" ? `${salonName(e.salonId)} · ${e.title}` : e.title}
                           </Text>
                         </View>
                       ))}
@@ -683,8 +754,13 @@ const styles = StyleSheet.create({
   selectedTitle: { fontSize: 14, fontWeight: "700", color: colors.tealDark, textTransform: "capitalize" },
   addButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 14 },
   addButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md, width: "100%", maxWidth: 480, maxHeight: "90%", shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  modalCloseText: { fontSize: 12, color: colors.slate, fontWeight: "700", lineHeight: 14 },
   formCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  formTitle: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: spacing.sm },
+  formTitle: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: 0 },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
   scopeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   scopeChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12 },
@@ -721,5 +797,14 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
   actionLink: { color: colors.teal, fontWeight: "700", fontSize: 13 },
   actionDanger: { color: colors.danger, fontWeight: "700", fontSize: 13 },
+  iconBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  confirmCard: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg, width: "100%", maxWidth: 320, alignItems: "center", gap: spacing.sm },
+  confirmTitle: { fontSize: 16, fontWeight: "700", color: colors.ink, textAlign: "center" },
+  confirmBody: { fontSize: 13, color: colors.slate, textAlign: "center" },
+  confirmActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, width: "100%" },
+  confirmCancel: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" },
+  confirmCancelText: { fontSize: 14, color: colors.ink, fontWeight: "600" },
+  confirmDelete: { flex: 1, backgroundColor: colors.danger, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" },
+  confirmDeleteText: { fontSize: 14, color: "#fff", fontWeight: "700" },
   empty: { fontSize: 13, color: colors.slate, textAlign: "center", marginTop: spacing.lg },
 });

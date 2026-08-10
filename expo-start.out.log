@@ -1,0 +1,61 @@
+env: load .env
+env: export EXPO_PUBLIC_FIREBASE_API_KEY EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN EXPO_PUBLIC_FIREBASE_PROJECT_ID EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID EXPO_PUBLIC_FIREBASE_APP_ID FIREBASE_ADMIN_PROJECT_ID FIREBASE_ADMIN_CLIENT_EMAIL FIREBASE_ADMIN_PRIVATE_KEY R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET R2_PUBLIC_URL EXPO_PUBLIC_WORKER_URL EXPO_PUBLIC_WORKER_SECRET
+Networking has been disabled
+Starting project at C:\Users\nviveros30\Documents\BITACORA\bitacora
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+λ Bundled 47691ms node_modules\expo-router\node\render.js (1218 modules)
+Web Bundled 50056ms node_modules\expo-router\entry.js (883 modules)
+Web Bundled 5340ms node_modules\expo-router\entry.js (883 modules)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 67ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 7487ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 270ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 462ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 8019ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 100ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 24ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 7141ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 133ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+ ERROR  SyntaxError: C:\Users\nviveros30\Documents\BITACORA\bitacora\app\(app)\admin\salones.tsx: Missing semicolon. (265:7)
+
+  263 |           </View>
+  264 |         </View>
+> 265 |       ))}
+      |        ^
+  266 |     </ScrollView>
+  267 |   );
+  268 | }
+λ Bundled 2459ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 12936ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 291ms node_modules\expo-router\node\render.js (1 module)
+λ Bundled 45ms node_modules\expo-router\node\render.js (1 module)
+λ Bundled 316ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 22412ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 20007ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 12107ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 271ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 152ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 83ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 1482ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 131ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 321ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 3627ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 136ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 277ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 3162ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 449ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 1376ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 6670ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 197ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 195ms node_modules\expo-router\node\render.js (1 module)

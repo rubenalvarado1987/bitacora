@@ -152,6 +152,7 @@ export interface Salon {
   schedule?: SalonSchedule;
   maxCapacity?: number;
   educationalLevel?: SalonEducationalLevel;
+  color?: string | null;
 }
 
 export interface ParticipantProfile {

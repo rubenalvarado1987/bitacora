@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   ImageBackground,
@@ -19,6 +19,7 @@ export default function LoginScreen() {
   const { user, membership, loading, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const passwordRef = useRef<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +59,7 @@ export default function LoginScreen() {
       resizeMode="contain"
       imageStyle={styles.bgImage}
     >
-      <View style={styles.overlay} />
+      <View style={styles.overlay} pointerEvents="none" />
       <Text style={styles.brand}>Bitácora</Text>
       <Text style={styles.subtitle}>Ficha autoadministrable y seguimiento longitudinal</Text>
 
@@ -72,16 +73,22 @@ export default function LoginScreen() {
           keyboardType="email-address"
           placeholder="nombre@organizacion.com"
           placeholderTextColor={colors.slate}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <Text style={styles.label}>Contraseña</Text>
         <TextInput
           style={styles.input}
+          ref={passwordRef}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
           placeholder="••••••••"
           placeholderTextColor={colors.slate}
+          returnKeyType="go"
+          onSubmitEditing={handleSignIn}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}

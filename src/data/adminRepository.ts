@@ -60,6 +60,7 @@ export interface SalonDraft {
   schedule?: SalonSchedule;
   maxCapacity?: number | "";
   educationalLevel?: SalonEducationalLevel | "";
+  color?: string | null;
 }
 
 export function listenProfiles(organizationId: string, onChange: (items: ProfileRecord[]) => void) {
@@ -249,6 +250,7 @@ export async function saveSalon(organizationId: string, draft: SalonDraft, id?: 
     schedule: draft.schedule && draft.schedule.length > 0 ? draft.schedule : null,
     maxCapacity: draft.maxCapacity || null,
     educationalLevel: draft.educationalLevel || null,
+    color: draft.color || null,
   });
 
   return ref.id;
