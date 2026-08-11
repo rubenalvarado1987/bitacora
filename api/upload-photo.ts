@@ -29,56 +29,62 @@ function buildR2Client() {
 
 // Genera una URL prefirmada (PUT) para que el cliente suba la foto directamente a R2.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Método no permitido." });
-    return;
-  }
-
   try {
-    ensureAdminApp();
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Método no permitido." });
+      return;
+    }
+
+    try {
+      ensureAdminApp();
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+      return;
+    }
+
+    const idToken = (req.headers.authorization ?? "").replace(/^Bearer\s+/, "");
+    if (!idToken) {
+      res.status(401).json({ error: "Falta token de autenticación." });
+      return;
+    }
+    try {
+      await getAuth().verifyIdToken(idToken);
+    } catch {
+      res.status(401).json({ error: "Token inválido o expirado." });
+      return;
+    }
+
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body ?? {});
+    const { participantId, profileId, organizationId } = body;
+    if (!participantId && !profileId && !organizationId) {
+      res.status(400).json({ error: "Falta participantId, profileId u organizationId." });
+      return;
+    }
+
+    const bucket = process.env.R2_BUCKET;
+    const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+    if (!bucket || !publicBase) {
+      res.status(500).json({ error: "Faltan R2_BUCKET o R2_PUBLIC_URL en el servidor." });
+      return;
+    }
+
+    let key = `organizations/${organizationId}/${Date.now()}.jpg`;
+    if (participantId) {
+      key = `participants/${participantId}/${Date.now()}.jpg`;
+    } else if (profileId) {
+      key = `profiles/${profileId}/${Date.now()}.jpg`;
+    }
+
+    try {
+      const r2 = buildR2Client();
+      const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: "image/jpeg" });
+      const uploadUrl = await getSignedUrl(r2, cmd, { expiresIn: 300 });
+      res.status(200).json({ uploadUrl, publicUrl: `${publicBase}/${key}` });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
-    return;
-  }
-
-  const idToken = (req.headers.authorization ?? "").replace(/^Bearer\s+/, "");
-  if (!idToken) {
-    res.status(401).json({ error: "Falta token de autenticación." });
-    return;
-  }
-  try {
-    await getAuth().verifyIdToken(idToken);
-  } catch {
-    res.status(401).json({ error: "Token inválido o expirado." });
-    return;
-  }
-
-  const { participantId, profileId, organizationId } = req.body ?? {};
-  if (!participantId && !profileId && !organizationId) {
-    res.status(400).json({ error: "Falta participantId, profileId u organizationId." });
-    return;
-  }
-
-  const bucket = process.env.R2_BUCKET;
-  const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
-  if (!bucket || !publicBase) {
-    res.status(500).json({ error: "Faltan R2_BUCKET o R2_PUBLIC_URL en el servidor." });
-    return;
-  }
-
-  let key = `organizations/${organizationId}/${Date.now()}.jpg`;
-  if (participantId) {
-    key = `participants/${participantId}/${Date.now()}.jpg`;
-  } else if (profileId) {
-    key = `profiles/${profileId}/${Date.now()}.jpg`;
-  }
-
-  try {
-    const r2 = buildR2Client();
-    const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: "image/jpeg" });
-    const uploadUrl = await getSignedUrl(r2, cmd, { expiresIn: 300 });
-    res.status(200).json({ uploadUrl, publicUrl: `${publicBase}/${key}` });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    console.error("[upload-photo] unhandled error:", e);
+    res.status(500).json({ error: e?.message ?? "Error interno del servidor." });
   }
 }
