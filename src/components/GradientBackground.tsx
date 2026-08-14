@@ -7,6 +7,7 @@ import { gradient } from "../theme";
 export default function GradientBackground() {
   return (
     <LinearGradient
+      pointerEvents="none"
       colors={gradient.background}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}

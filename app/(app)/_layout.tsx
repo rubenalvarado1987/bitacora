@@ -1,5 +1,6 @@
 import React from "react";
 import { Redirect, Stack } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
 import LoadingScreen from "../../src/components/LoadingScreen";
 import { colors } from "../../src/theme";
@@ -20,13 +21,15 @@ export default function AppLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.paper },
-        headerShadowVisible: false,
-        headerTintColor: colors.ink,
-        contentStyle: { backgroundColor: "transparent" },
-      }}
-    />
+    <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.paper },
+          headerShadowVisible: false,
+          headerTintColor: colors.ink,
+          contentStyle: { backgroundColor: "transparent" },
+        }}
+      />
+    </SafeAreaView>
   );
 }

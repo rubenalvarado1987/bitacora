@@ -26,6 +26,7 @@
       "bundler": "metro",
       "output": "static"
     },
+    "newArchEnabled": true,
     "plugins": [
       "expo-router",
       "expo-asset",

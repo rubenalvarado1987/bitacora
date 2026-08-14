@@ -1,5 +1,10 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import {
+  initializeAuth,
+  getAuth,
+  browserLocalPersistence,
+} from "firebase/auth";
+import { Platform } from "react-native";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -22,11 +27,16 @@ export const firebaseConfigError = missingFirebaseFields.length
   ? `Falta completar Firebase en .env: ${missingFirebaseFields.join(", ")}. Copia los valores reales desde Firebase Console > Configuracion del proyecto > Tus apps > SDK config.`
   : null;
 
-export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const isNew = !getApps().length;
+export const app = isNew ? initializeApp(firebaseConfig) : getApp();
 
-// Usamos la inicializacion por defecto del SDK instalado para mantener compatibilidad
-// entre web y Expo sin depender de APIs no expuestas por esta version.
-export const auth = getAuth(app);
+export const auth = isNew
+  ? Platform.OS === "web"
+    ? initializeAuth(app, {
+        persistence: browserLocalPersistence,
+      })
+    : getAuth(app)
+  : getAuth(app);
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);
