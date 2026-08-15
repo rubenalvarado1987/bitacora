@@ -50,7 +50,7 @@ export default function DailySummaryCard({ entries, personName }: Readonly<Daily
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <AppIcon name="star-four-points-small" size={18} color={colors.teal} />
+          <AppIcon name="star-four-points" size={18} color={colors.teal} />
           <Text style={styles.title}>Daily Summary</Text>
         </View>
         <View style={styles.aiBadge}>

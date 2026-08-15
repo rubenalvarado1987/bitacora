@@ -31,7 +31,7 @@ export function getFieldIconName(field: TemplateField): React.ComponentProps<typ
     case "scale":
       return "star";
     case "checklist":
-      return "check-box-multiple-outline";
+      return "checkbox-multiple-outline";
     case "photo":
       return "camera";
     case "signature":

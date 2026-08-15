@@ -53,6 +53,43 @@ const emptyDraft: CalendarEventDraft = {
   scope: "global",
 };
 
+function normalizeBirthDate(value: unknown): { month: number; day: number } | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!raw) return null;
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+  }
+
+  const slash = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slash) {
+    const day = Number(slash[1]);
+    const month = Number(slash[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return { month: parsed.getMonth() + 1, day: parsed.getDate() };
+  }
+
+  return null;
+}
+
+function participantBirthDate(person: Person): { month: number; day: number } | null {
+  const base = person.baseData ?? {};
+  return (
+    normalizeBirthDate(base["fecha_nacimiento"]) ||
+    normalizeBirthDate(base["fechaNacimiento"]) ||
+    normalizeBirthDate(base["birthDate"]) ||
+    normalizeBirthDate(base["nacimiento"])
+  );
+}
+
 function shiftDay(iso: string, delta: number) {
   const date = parseISODate(iso) ?? new Date();
   date.setDate(date.getDate() + delta);
@@ -71,6 +108,7 @@ export default function CalendarioScreen() {
   const [allSalons, setAllSalons] = useState<Salon[]>([]);
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [linkedParticipants, setLinkedParticipants] = useState<Person[]>([]);
+  const [allParticipants, setAllParticipants] = useState<Person[]>([]);
 
   const [viewMode, setViewMode] = useState<"mensual" | "diaria">("mensual");
   const [cursor, setCursor] = useState(() => new Date());
@@ -110,6 +148,14 @@ export default function CalendarioScreen() {
     );
   }, [membership?.organizationId, membership?.uid, isViewerRole]);
 
+  useEffect(() => {
+    if (!membership?.organizationId || !isEditorRole) {
+      setAllParticipants([]);
+      return;
+    }
+    return listenParticipants(membership.organizationId, setAllParticipants);
+  }, [membership?.organizationId, isEditorRole]);
+
   // Salones visibles según el rol: admin ve todos, editor/profesional solo los suyos,
   // apoderado solo los de sus participantes vinculados, y un "lector" de staff (sin
   // participantes vinculados) ve todos en modo solo lectura.
@@ -132,6 +178,49 @@ export default function CalendarioScreen() {
     [events, visibleSalonIds]
   );
 
+  const birthdayEvents = useMemo(() => {
+    if (!isEditorRole || !membership?.organizationId) return [] as CalendarEvent[];
+
+    const selectedYear = parseISODate(selectedDate)?.getFullYear() ?? cursor.getFullYear();
+    const years = Array.from(new Set([cursor.getFullYear(), selectedYear]));
+
+    return allParticipants.flatMap((participant) => {
+      const birth = participantBirthDate(participant);
+      if (!birth) return [] as CalendarEvent[];
+
+      const participantSalonIds = participant.salonIds ?? [];
+      const matchedSalonId = participantSalonIds.find((id) => visibleSalonIds.has(id));
+      if (!matchedSalonId) return [] as CalendarEvent[];
+
+      return years.map((year) => ({
+        id: `birthday-${participant.id}-${year}`,
+        organizationId: membership.organizationId,
+        title: `Cumpleaños · ${participant.name}`,
+        recurrence: "single" as const,
+        date: `${year}-${String(birth.month).padStart(2, "0")}-${String(birth.day).padStart(2, "0")}`,
+        endDate: null,
+        startTime: null,
+        endTime: null,
+        description: "Cumpleaños del participante",
+        salonId: matchedSalonId,
+        scope: "salon" as const,
+        createdBy: "system",
+      }));
+    });
+  }, [
+    isEditorRole,
+    membership?.organizationId,
+    selectedDate,
+    cursor,
+    allParticipants,
+    visibleSalonIds,
+  ]);
+
+  const visibleEventsWithBirthdays = useMemo(
+    () => [...visibleEvents, ...birthdayEvents],
+    [visibleEvents, birthdayEvents]
+  );
+
   const filterChips = useMemo(() => {
     const chips: { key: string; label: string }[] = [{ key: "global", label: "Global" }];
     visibleSalons.forEach((s) => chips.push({ key: s.id, label: s.name }));
@@ -145,9 +234,9 @@ export default function CalendarioScreen() {
   }, [filterChips, filter]);
 
   const filteredEvents = useMemo(() => {
-    if (filter === "global") return visibleEvents;
-    return visibleEvents.filter((e) => e.scope === "global" || (e.scope === "salon" && e.salonId === filter));
-  }, [visibleEvents, filter]);
+    if (filter === "global") return visibleEventsWithBirthdays;
+    return visibleEventsWithBirthdays.filter((e) => e.scope === "global" || (e.scope === "salon" && e.salonId === filter));
+  }, [visibleEventsWithBirthdays, filter]);
 
   const selectedDayEvents = useMemo(() => {
     const items = filteredEvents.filter((e) => eventOccursOnDate(e, selectedDate));
@@ -178,7 +267,8 @@ export default function CalendarioScreen() {
   const changeSelectedDay = (delta: number) => setSelectedDate((prev) => shiftDay(prev, delta));
 
   const canManageEvent = (event: CalendarEvent) =>
-    isAdmin || (isEditorRole && event.scope === "salon" && visibleSalonIds.has(event.salonId ?? ""));
+    !event.id.startsWith("birthday-") &&
+    (isAdmin || (isEditorRole && event.scope === "salon" && visibleSalonIds.has(event.salonId ?? "")));
 
   const resetForm = () => {
     setDraft(emptyDraft);
