@@ -1,5 +1,5 @@
 import React, { Fragment, useEffect, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, radius, shadow, spacing } from "../theme";
 import { useAuth } from "../context/AuthContext";
@@ -19,12 +19,14 @@ interface BreadcrumbProps {
 
 export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
   const router = useRouter();
-  const { user, membership, organization } = useAuth();
+  const { user, membership, organization, signOut } = useAuth();
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [myParticipant, setMyParticipant] = useState<Person | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [orgAvatarFailed, setOrgAvatarFailed] = useState(false);
   const [userAvatarFailed, setUserAvatarFailed] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!membership?.organizationId || !membership.uid) return;
@@ -70,6 +72,19 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn("No se pudo cerrar sesión:", error);
+    } finally {
+      setSigningOut(false);
+      setShowProfileMenu(false);
+    }
+  };
 
   return (
     <View style={styles.bar}>
@@ -128,18 +143,36 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
           ) : null}
         </Pressable>
 
-        {userAvatarUri && !userAvatarFailed ? (
-          <Image
-            source={{ uri: userAvatarUri }}
-            style={styles.sessionAvatar}
-            onError={() => setUserAvatarFailed(true)}
-          />
-        ) : (
-          <View style={[styles.sessionAvatar, styles.sessionAvatarPlaceholder]}>
-            <Text style={styles.sessionAvatarInitials}>{userInitials}</Text>
-          </View>
-        )}
+        <Pressable onPress={() => setShowProfileMenu(true)} hitSlop={6}>
+          {userAvatarUri && !userAvatarFailed ? (
+            <Image
+              source={{ uri: userAvatarUri }}
+              style={styles.sessionAvatar}
+              onError={() => setUserAvatarFailed(true)}
+            />
+          ) : (
+            <View style={[styles.sessionAvatar, styles.sessionAvatarPlaceholder]}>
+              <Text style={styles.sessionAvatarInitials}>{userInitials}</Text>
+            </View>
+          )}
+        </Pressable>
       </View>
+
+      <Modal
+        visible={showProfileMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProfileMenu(false)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setShowProfileMenu(false)}>
+          <Pressable style={styles.menuCard} onPress={() => {}}>
+            <Pressable style={styles.menuItem} onPress={handleSignOut} disabled={signingOut}>
+              <AppIcon name="logout" size={16} color={colors.danger} />
+              <Text style={styles.menuItemText}>{signingOut ? "Cerrando sesión..." : "Cerrar sesión"}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -191,5 +224,29 @@ const styles = StyleSheet.create({
   sessionAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: "#fff" },
   sessionAvatarPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
   sessionAvatarInitials: { fontSize: 13, fontWeight: "700", color: colors.tealDark },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    alignItems: "flex-end",
+    justifyContent: "flex-start",
+    paddingTop: 66,
+    paddingRight: spacing.md,
+  },
+  menuCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    minWidth: 170,
+    ...shadow.soft,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  menuItemText: { fontSize: 13, fontWeight: "600", color: colors.ink },
 });
 
