@@ -21,6 +21,7 @@ import {
   removeCalendarEvent,
   saveCalendarEvent,
 } from "../../src/data/calendarRepository";
+import { getChileHolidays, type ChileHoliday } from "../../src/data/attendanceRepository";
 import { listenMyProfile, listenParticipants, listenSalons } from "../../src/data/adminRepository";
 import DateField from "../../src/components/DateField";
 import TimeField from "../../src/components/TimeField";
@@ -104,6 +105,10 @@ function isBirthdayEvent(event: CalendarEvent) {
   return event.id.startsWith("birthday-");
 }
 
+function isHolidayEvent(event: CalendarEvent) {
+  return event.id.startsWith("holiday-");
+}
+
 function shiftDay(iso: string, delta: number) {
   const date = parseISODate(iso) ?? new Date();
   date.setDate(date.getDate() + delta);
@@ -123,6 +128,7 @@ export default function CalendarioScreen() {
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [linkedParticipants, setLinkedParticipants] = useState<Person[]>([]);
   const [allParticipants, setAllParticipants] = useState<Person[]>([]);
+  const [holidaysByYear, setHolidaysByYear] = useState<Record<number, ChileHoliday[]>>({});
 
   const [viewMode, setViewMode] = useState<"mensual" | "diaria">("mensual");
   const [cursor, setCursor] = useState(() => new Date());
@@ -169,6 +175,33 @@ export default function CalendarioScreen() {
     }
     return listenParticipants(membership.organizationId, setAllParticipants);
   }, [membership?.organizationId, isEditorRole, isAdmin]);
+
+  useEffect(() => {
+    const selectedYear = parseISODate(selectedDate)?.getFullYear() ?? cursor.getFullYear();
+    const years = Array.from(new Set([cursor.getFullYear(), selectedYear]));
+
+    let alive = true;
+    Promise.all(
+      years.map(async (year) => [year, await getChileHolidays(year)] as const)
+    )
+      .then((entries) => {
+        if (!alive) return;
+        setHolidaysByYear((prev) => {
+          const next = { ...prev };
+          entries.forEach(([year, holidays]) => {
+            next[year] = holidays;
+          });
+          return next;
+        });
+      })
+      .catch(() => {
+        // Si falla la carga de feriados, no bloqueamos el calendario.
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [cursor, selectedDate]);
 
   // Salones visibles según el rol: admin ve todos, editor/profesional solo los suyos,
   // apoderado solo los de sus participantes vinculados, y un "lector" de staff (sin
@@ -239,6 +272,31 @@ export default function CalendarioScreen() {
     [visibleEvents, birthdayEvents]
   );
 
+  const holidayEvents = useMemo(() => {
+    const years = Array.from(new Set([cursor.getFullYear(), parseISODate(selectedDate)?.getFullYear() ?? cursor.getFullYear()]));
+    return years.flatMap((year) => {
+      const holidays = holidaysByYear[year] ?? [];
+      return holidays.map((holiday) => ({
+        id: `holiday-${holiday.date}`,
+        organizationId: membership?.organizationId ?? "",
+        title: holiday.name,
+        recurrence: "single" as const,
+        date: holiday.date,
+        endDate: null,
+        startTime: null,
+        endTime: null,
+        description: "Feriado oficial (Chile)",
+        scope: "global" as const,
+        createdBy: "system",
+      }));
+    });
+  }, [cursor, selectedDate, holidaysByYear, membership?.organizationId]);
+
+  const visibleEventsWithSystem = useMemo(
+    () => [...visibleEventsWithBirthdays, ...holidayEvents],
+    [visibleEventsWithBirthdays, holidayEvents]
+  );
+
   const filterChips = useMemo(() => {
     const chips: { key: string; label: string }[] = [{ key: "global", label: "Global" }];
     visibleSalons.forEach((s) => chips.push({ key: s.id, label: s.name }));
@@ -252,9 +310,9 @@ export default function CalendarioScreen() {
   }, [filterChips, filter]);
 
   const filteredEvents = useMemo(() => {
-    if (filter === "global") return visibleEventsWithBirthdays;
-    return visibleEventsWithBirthdays.filter((e) => e.scope === "global" || (e.scope === "salon" && e.salonId === filter));
-  }, [visibleEventsWithBirthdays, filter]);
+    if (filter === "global") return visibleEventsWithSystem;
+    return visibleEventsWithSystem.filter((e) => e.scope === "global" || (e.scope === "salon" && e.salonId === filter));
+  }, [visibleEventsWithSystem, filter]);
 
   const selectedDayEvents = useMemo(() => {
     const items = filteredEvents.filter((e) => eventOccursOnDate(e, selectedDate));
@@ -285,7 +343,7 @@ export default function CalendarioScreen() {
   const changeSelectedDay = (delta: number) => setSelectedDate((prev) => shiftDay(prev, delta));
 
   const canManageEvent = (event: CalendarEvent) =>
-    !isBirthdayEvent(event) &&
+    !isBirthdayEvent(event) && !isHolidayEvent(event) &&
     (isAdmin || (isEditorRole && event.scope === "salon" && visibleSalonIds.has(event.salonId ?? "")));
 
   const resetForm = () => {
@@ -389,6 +447,7 @@ export default function CalendarioScreen() {
       <View style={styles.eventHeader}>
         <View style={styles.eventTitleRow}>
           {isBirthdayEvent(e) ? <AppIcon name="cake-variant" size={14} color={colors.amber} /> : null}
+          {isHolidayEvent(e) ? <AppIcon name="calendar-star" size={14} color={colors.danger} /> : null}
           <Text style={styles.eventTitle}>{isBirthdayEvent(e) ? `Cumpleaños · ${e.title}` : e.title}</Text>
         </View>
         <View style={[styles.scopeBadge, { backgroundColor: e.scope === "global" ? colors.amberTint : salonTint(e.salonId) }]}>
@@ -692,6 +751,13 @@ export default function CalendarioScreen() {
                               name="cake-variant"
                               size={10}
                               color={isSelected ? "#fff" : colors.amber}
+                            />
+                          ) : null}
+                          {isHolidayEvent(e) ? (
+                            <AppIcon
+                              name="calendar-star"
+                              size={10}
+                              color={isSelected ? "#fff" : colors.danger}
                             />
                           ) : null}
                           <Text

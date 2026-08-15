@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { listenParticipants, listenPlans, listenSalons } from "../../../src/data/adminRepository";
+import { AttendanceSummary, getAttendanceSummaries } from "../../../src/data/attendanceRepository";
 import { colors, radius, shadow, spacing } from "../../../src/theme";
 import { EconomicPlan, Person, Salon } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
@@ -14,6 +15,8 @@ export default function ApoderadoPanelScreen() {
   const [participants, setParticipants] = useState<Person[]>([]);
   const [plans, setPlans] = useState<EconomicPlan[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
+  const [attendanceByParticipant, setAttendanceByParticipant] = useState<Record<string, AttendanceSummary>>({});
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +38,32 @@ export default function ApoderadoPanelScreen() {
     return listenSalons(membership.organizationId, setSalons);
   }, [membership?.organizationId]);
 
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    const ids = participants.map((p) => p.id);
+    if (ids.length === 0) {
+      setAttendanceByParticipant({});
+      return;
+    }
+
+    let alive = true;
+    setLoadingAttendance(true);
+    getAttendanceSummaries(membership.organizationId, ids)
+      .then((summary) => {
+        if (alive) setAttendanceByParticipant(summary);
+      })
+      .catch(() => {
+        if (alive) setAttendanceByParticipant({});
+      })
+      .finally(() => {
+        if (alive) setLoadingAttendance(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [membership?.organizationId, participants]);
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -55,6 +84,7 @@ export default function ApoderadoPanelScreen() {
         <ScrollView contentContainerStyle={styles.list}>
           {participants.map((item) => {
             const plan = plans.find((p) => p.id === item.planId);
+            const attendance = attendanceByParticipant[item.id];
             const salonList = (item.salonIds ?? []).map(
               (sid) => salons.find((s) => s.id === sid)?.name ?? sid
             );
@@ -105,6 +135,14 @@ export default function ApoderadoPanelScreen() {
                     <AppIcon name="account-check-outline" size={14} color={colors.slate} />
                     <Text style={styles.infoText}>
                       {item.status === "activo" ? "Activo" : "Inactivo"}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <AppIcon name="calendar-check-outline" size={14} color={colors.slate} />
+                    <Text style={styles.infoText}>
+                      {loadingAttendance || !attendance
+                        ? "Asistencia M: --% · A: --%"
+                        : `Asistencia M: ${attendance.monthPercent}% · A: ${attendance.yearPercent}%`}
                     </Text>
                   </View>
                 </View>

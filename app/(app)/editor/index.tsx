@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { listenMyProfile, listenParticipants, listenPlans, listenSalons } from "../../../src/data/adminRepository";
+import { AttendanceSummary, getAttendanceSummaries } from "../../../src/data/attendanceRepository";
 import { colors, radius, shadow, spacing } from "../../../src/theme";
 import { EconomicPlan, Person, ProfileRecord, Salon } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
@@ -15,7 +16,9 @@ export default function EditorPanelScreen() {
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [plans, setPlans] = useState<EconomicPlan[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
+  const [attendanceByParticipant, setAttendanceByParticipant] = useState<Record<string, AttendanceSummary>>({});
   const [loading, setLoading] = useState(true);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -49,6 +52,32 @@ export default function EditorPanelScreen() {
     if (mySalonIds.size === 0) return [];
     return allParticipants.filter((p) => (p.salonIds ?? []).some((id) => mySalonIds.has(id)));
   }, [allParticipants, mySalonIds]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    const ids = participants.map((p) => p.id);
+    if (ids.length === 0) {
+      setAttendanceByParticipant({});
+      return;
+    }
+
+    let alive = true;
+    setLoadingAttendance(true);
+    getAttendanceSummaries(membership.organizationId, ids)
+      .then((summary) => {
+        if (alive) setAttendanceByParticipant(summary);
+      })
+      .catch(() => {
+        if (alive) setAttendanceByParticipant({});
+      })
+      .finally(() => {
+        if (alive) setLoadingAttendance(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [membership?.organizationId, participants]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -106,6 +135,7 @@ export default function EditorPanelScreen() {
               );
               const comuna = getComunaFromBaseData(item);
               const telefono = getTelefonoFromBaseData(item);
+              const attendance = attendanceByParticipant[item.id];
 
               return (
                 <Pressable
@@ -155,6 +185,14 @@ export default function EditorPanelScreen() {
                         <Text style={styles.infoText}>{telefono}</Text>
                       </View>
                     ) : null}
+                    <View style={styles.infoRow}>
+                      <AppIcon name="calendar-check-outline" size={14} color={colors.slate} />
+                      <Text style={styles.infoText}>
+                        {loadingAttendance || !attendance
+                          ? "Asistencia M: --% · A: --%"
+                          : `Asistencia M: ${attendance.monthPercent}% · A: ${attendance.yearPercent}%`}
+                      </Text>
+                    </View>
                   </View>
 
                   {/* Footer: botón de nuevo registro */}

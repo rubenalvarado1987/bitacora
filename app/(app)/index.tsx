@@ -15,6 +15,7 @@ export default function HomeScreen() {
   const [participants, setParticipants] = useState<Person[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [plans, setPlans] = useState<EconomicPlan[]>([]);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (membership?.role !== "admin" || !membership.organizationId) return;
@@ -46,6 +47,18 @@ export default function HomeScreen() {
     planes: "cash-multiple",
     profesionales: "account-tie",
     participantes: "account-group",
+  };
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn("No se pudo cerrar sesión:", error);
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   return (
@@ -81,7 +94,7 @@ export default function HomeScreen() {
           {/* Shared */}
           <NavButton label="Calendario" icon="calendar-month-outline" onPress={() => router.push("/calendario" as any)} />
           <NavButton label="Chat" icon="chat-processing-outline" onPress={() => router.push("/chat" as any)} />
-          <NavButton label="Cerrar sesión" icon="logout" onPress={signOut} />
+          <NavButton label={signingOut ? "Cerrando sesión..." : "Cerrar sesión"} icon="logout" onPress={handleSignOut} />
         </View>
       </View>
 

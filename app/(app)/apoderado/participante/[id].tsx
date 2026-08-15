@@ -12,12 +12,14 @@ import { db } from "../../../../src/firebase";
 import { useAuth } from "../../../../src/context/AuthContext";
 import { listenEntries } from "../../../../src/data/entriesRepository";
 import { listenSalons } from "../../../../src/data/adminRepository";
+import { AttendanceSummary, getAttendanceSummaries } from "../../../../src/data/attendanceRepository";
 import { colors, spacing } from "../../../../src/theme";
 import { Entry, Person, Salon } from "../../../../src/types";
 import Breadcrumb from "../../../../src/components/Breadcrumb";
 import ProfileSidebar from "../../../../src/components/ProfileSidebar";
 import DailySummaryCard from "../../../../src/components/DailySummaryCard";
 import { TimelineEntryCard } from "../../../../src/components/TimelineEntryCard";
+import AppIcon from "../../../../src/components/AppIcon";
 
 export default function ApoderadoParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,6 +27,8 @@ export default function ApoderadoParticipantScreen() {
   const [person, setPerson] = useState<Person | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,6 +48,29 @@ export default function ApoderadoParticipantScreen() {
   useEffect(() => {
     if (!membership?.organizationId || !id || !person) return;
     return listenEntries(membership.organizationId, id, setEntries);
+  }, [membership?.organizationId, id, person]);
+
+  useEffect(() => {
+    if (!membership?.organizationId || !id || !person) return;
+    let alive = true;
+    setLoadingAttendance(true);
+    getAttendanceSummaries(membership.organizationId, [id])
+      .then((data) => {
+        if (!alive) return;
+        setAttendance(data[id] ?? null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setAttendance(null);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoadingAttendance(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [membership?.organizationId, id, person]);
 
   useEffect(() => {
@@ -71,6 +98,22 @@ export default function ApoderadoParticipantScreen() {
 
   const timelineContent = (
     <>
+      <View style={styles.attendanceCard}>
+        <View style={styles.attendanceHeader}>
+          <AppIcon name="calendar-check-outline" size={16} color={colors.tealDark} />
+          <Text style={styles.attendanceTitle}>Asistencia</Text>
+        </View>
+        <Text style={styles.attendanceLine}>
+          {loadingAttendance || !attendance
+            ? "Mes actual: --%"
+            : `Mes actual: ${attendance.monthPercent}% (${attendance.presentMonth}/${attendance.expectedMonth} días hábiles)`}
+        </Text>
+        <Text style={styles.attendanceLine}>
+          {loadingAttendance || !attendance
+            ? "Año actual: --%"
+            : `Año actual: ${attendance.yearPercent}% (${attendance.presentYear}/${attendance.expectedYear} días hábiles)`}
+        </Text>
+      </View>
       <DailySummaryCard entries={entries} personName={person.name} />
       <Text style={styles.timelineHeader}>REGISTROS</Text>
       {entries.length === 0 ? (
@@ -125,6 +168,17 @@ const styles = StyleSheet.create({
   mainColContent: {},
   singleColContent: { padding: spacing.lg, paddingBottom: spacing.xl + 80, gap: spacing.md },
   timelineWrap: {},
+  attendanceCard: {
+    backgroundColor: "rgba(255,255,255,0.82)",
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 14,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  attendanceHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  attendanceTitle: { fontSize: 13, fontWeight: "700", color: colors.tealDark },
+  attendanceLine: { fontSize: 12, color: colors.slate, marginTop: 2 },
   // --- Timeline section header ---
   timelineHeader: {
     fontSize: 11,

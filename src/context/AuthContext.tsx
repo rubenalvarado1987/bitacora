@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   User,
   createUserWithEmailAndPassword,
@@ -30,6 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
+  const authChangeSeq = useRef(0);
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("AUTH_TIMEOUT")), ms);
+    });
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
 
   const refreshMembership = async (knownOrganizationId?: string) => {
     const currentUser = auth.currentUser;
@@ -125,18 +138,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const seq = ++authChangeSeq.current;
       // Vuelve a mostrar el estado de carga en cada cambio de sesión, no solo al arrancar la app,
       // para evitar el pestañeo hacia /setup mientras se resuelve la membresía tras iniciar sesión.
       setLoading(true);
       setUser(firebaseUser);
 
       if (firebaseUser) {
-        await refreshMembership();
+        try {
+          await withTimeout(refreshMembership(), 12000);
+        } catch (error: any) {
+          if (error?.message === "AUTH_TIMEOUT") {
+            console.warn("Tiempo de espera agotado al resolver membresía.");
+          }
+          setMembership(null);
+        }
       } else {
         setMembership(null);
+        setOrganization(null);
       }
 
-      setLoading(false);
+      // Evita que callbacks antiguos pisen el estado actual.
+      if (seq === authChangeSeq.current) {
+        setLoading(false);
+      }
     });
 
     return unsubscribe;
