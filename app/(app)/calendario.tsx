@@ -82,12 +82,26 @@ function normalizeBirthDate(value: unknown): { month: number; day: number } | nu
 
 function participantBirthDate(person: Person): { month: number; day: number } | null {
   const base = person.baseData ?? {};
-  return (
+
+  // 1) Intento directo con llaves comunes.
+  const direct =
     normalizeBirthDate(base["fecha_nacimiento"]) ||
     normalizeBirthDate(base["fechaNacimiento"]) ||
     normalizeBirthDate(base["birthDate"]) ||
-    normalizeBirthDate(base["nacimiento"])
-  );
+    normalizeBirthDate(base["nacimiento"]);
+  if (direct) return direct;
+
+  // 2) Fallback: detecta cualquier campo que represente fecha de nacimiento
+  // según el id guardado en baseData (plantillas pueden variar el nombre de llave).
+  const candidates = Object.entries(base)
+    .filter(([key]) => /(fecha.*nac|nacim|birth.*date|cumple)/i.test(key))
+    .map(([, value]) => normalizeBirthDate(value));
+
+  return candidates.find((value): value is { month: number; day: number } => Boolean(value)) ?? null;
+}
+
+function isBirthdayEvent(event: CalendarEvent) {
+  return event.id.startsWith("birthday-");
 }
 
 function shiftDay(iso: string, delta: number) {
@@ -149,12 +163,12 @@ export default function CalendarioScreen() {
   }, [membership?.organizationId, membership?.uid, isViewerRole]);
 
   useEffect(() => {
-    if (!membership?.organizationId || !isEditorRole) {
+    if (!membership?.organizationId || (!isEditorRole && !isAdmin)) {
       setAllParticipants([]);
       return;
     }
     return listenParticipants(membership.organizationId, setAllParticipants);
-  }, [membership?.organizationId, isEditorRole]);
+  }, [membership?.organizationId, isEditorRole, isAdmin]);
 
   // Salones visibles según el rol: admin ve todos, editor/profesional solo los suyos,
   // apoderado solo los de sus participantes vinculados, y un "lector" de staff (sin
@@ -179,7 +193,7 @@ export default function CalendarioScreen() {
   );
 
   const birthdayEvents = useMemo(() => {
-    if (!isEditorRole || !membership?.organizationId) return [] as CalendarEvent[];
+    if ((!isEditorRole && !isAdmin) || !membership?.organizationId) return [] as CalendarEvent[];
 
     const selectedYear = parseISODate(selectedDate)?.getFullYear() ?? cursor.getFullYear();
     const years = Array.from(new Set([cursor.getFullYear(), selectedYear]));
@@ -189,30 +203,34 @@ export default function CalendarioScreen() {
       if (!birth) return [] as CalendarEvent[];
 
       const participantSalonIds = participant.salonIds ?? [];
-      const matchedSalonId = participantSalonIds.find((id) => visibleSalonIds.has(id));
-      if (!matchedSalonId) return [] as CalendarEvent[];
+      const matchedSalonId =
+        participantSalonIds.find((id) => visibleSalonIds.has(id)) ||
+        allSalons.find((salon) => visibleSalonIds.has(salon.id) && (salon.participantIds ?? []).includes(participant.id))?.id;
+      if (!matchedSalonId && !isAdmin) return [] as CalendarEvent[];
 
       return years.map((year) => ({
         id: `birthday-${participant.id}-${year}`,
         organizationId: membership.organizationId,
-        title: `Cumpleaños · ${participant.name}`,
+        title: participant.displayName || participant.name,
         recurrence: "single" as const,
         date: `${year}-${String(birth.month).padStart(2, "0")}-${String(birth.day).padStart(2, "0")}`,
         endDate: null,
         startTime: null,
         endTime: null,
         description: "Cumpleaños del participante",
-        salonId: matchedSalonId,
-        scope: "salon" as const,
+        salonId: matchedSalonId ?? undefined,
+        scope: matchedSalonId ? ("salon" as const) : ("global" as const),
         createdBy: "system",
       }));
     });
   }, [
+    isAdmin,
     isEditorRole,
     membership?.organizationId,
     selectedDate,
     cursor,
     allParticipants,
+    allSalons,
     visibleSalonIds,
   ]);
 
@@ -267,7 +285,7 @@ export default function CalendarioScreen() {
   const changeSelectedDay = (delta: number) => setSelectedDate((prev) => shiftDay(prev, delta));
 
   const canManageEvent = (event: CalendarEvent) =>
-    !event.id.startsWith("birthday-") &&
+    !isBirthdayEvent(event) &&
     (isAdmin || (isEditorRole && event.scope === "salon" && visibleSalonIds.has(event.salonId ?? "")));
 
   const resetForm = () => {
@@ -369,7 +387,10 @@ export default function CalendarioScreen() {
   const renderEventCard = (e: CalendarEvent) => (
     <View key={e.id} style={[styles.eventCard, { borderLeftWidth: 3, borderLeftColor: e.scope === "global" ? colors.amber : salonColor(e.salonId) }]}>
       <View style={styles.eventHeader}>
-        <Text style={styles.eventTitle}>{e.title}</Text>
+        <View style={styles.eventTitleRow}>
+          {isBirthdayEvent(e) ? <AppIcon name="cake-variant" size={14} color={colors.amber} /> : null}
+          <Text style={styles.eventTitle}>{isBirthdayEvent(e) ? `Cumpleaños · ${e.title}` : e.title}</Text>
+        </View>
         <View style={[styles.scopeBadge, { backgroundColor: e.scope === "global" ? colors.amberTint : salonTint(e.salonId) }]}>
           <Text style={[styles.scopeBadgeText, { color: e.scope === "global" ? colors.amber : salonColor(e.salonId) }]}>
             {e.scope === "global" ? "Global" : salonName(e.salonId)}
@@ -666,6 +687,13 @@ export default function CalendarioScreen() {
                               </Text>
                             </View>
                           ) : null}
+                          {isBirthdayEvent(e) ? (
+                            <AppIcon
+                              name="cake-variant"
+                              size={10}
+                              color={isSelected ? "#fff" : colors.amber}
+                            />
+                          ) : null}
                           <Text
                             numberOfLines={1}
                             style={[
@@ -676,7 +704,11 @@ export default function CalendarioScreen() {
                               isSelected && e.scope === "global" && styles.dayEventTitleSelected,
                             ]}
                           >
-                            {filter === "global" && e.scope === "salon" ? `${salonName(e.salonId)} · ${e.title}` : e.title}
+                            {filter === "global" && e.scope === "salon"
+                              ? `${salonName(e.salonId)} · ${isBirthdayEvent(e) ? `Cumpleaños · ${e.title}` : e.title}`
+                              : isBirthdayEvent(e)
+                                ? `Cumpleaños · ${e.title}`
+                                : e.title}
                           </Text>
                         </View>
                       ))}
@@ -839,6 +871,7 @@ const styles = StyleSheet.create({
   dayEventTitleGlobal: { color: colors.amber },
   dayEventTitleSalon: { color: colors.tealDark },
   dayEventTitleSelected: { color: "#fff" },
+  eventTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
   dayEventMore: { fontSize: 9, color: colors.slate, marginTop: 1, textAlign: "center" },
   selectedHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
   selectedTitle: { fontSize: 14, fontWeight: "700", color: colors.tealDark, textTransform: "capitalize" },
