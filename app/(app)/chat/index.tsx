@@ -8,9 +8,11 @@ import {
   View,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { useAuth } from "../../../src/context/AuthContext";
 import { createThread, listenThreads, ThreadDraft } from "../../../src/data/chatRepository";
 import { listenParticipants, listenProfiles } from "../../../src/data/adminRepository";
+import { db } from "../../../src/firebase";
 import { colors, radius, spacing } from "../../../src/theme";
 import { ChatThread, Person, ProfileRecord } from "../../../src/types";
 import { showAlert } from "../../../src/utils/alert";
@@ -43,6 +45,7 @@ export default function ChatIndexScreen() {
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const [participantSearch, setParticipantSearch] = useState("");
+  const [latestMessageMsByThread, setLatestMessageMsByThread] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -134,6 +137,68 @@ export default function ChatIndexScreen() {
     if (!membership?.organizationId || !user) return;
     return listenThreads(membership.organizationId, user.uid, role, setThreads);
   }, [membership?.organizationId, user?.uid, role]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) {
+      setLatestMessageMsByThread({});
+      return;
+    }
+
+    const unsubs: Array<() => void> = [];
+    const activeIds = new Set(threads.map((t) => t.id));
+
+    setLatestMessageMsByThread((prev) => {
+      const next: Record<string, number | null> = {};
+      for (const [threadId, value] of Object.entries(prev)) {
+        if (activeIds.has(threadId)) next[threadId] = value;
+      }
+      return next;
+    });
+
+    threads.forEach((thread) => {
+      const q = query(
+        collection(db, "organizations", membership.organizationId!, "chatThreads", thread.id, "messages"),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          const latest = snap.docs[0]?.data()?.createdAt;
+          const latestMs = typeof latest?.toMillis === "function" ? latest.toMillis() : null;
+          setLatestMessageMsByThread((prev) => ({ ...prev, [thread.id]: latestMs }));
+        },
+        () => {
+          setLatestMessageMsByThread((prev) => ({ ...prev, [thread.id]: null }));
+        }
+      );
+      unsubs.push(unsub);
+    });
+
+    return () => {
+      unsubs.forEach((unsub) => unsub());
+    };
+  }, [membership?.organizationId, threads]);
+
+  const getTimestampMs = (value: any): number | null => {
+    if (!value) return null;
+    if (typeof value.toMillis === "function") return value.toMillis();
+    if (value instanceof Date) return value.getTime();
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d.getTime();
+  };
+
+  const unreadThreadIds = useMemo(() => {
+    if (!user) return new Set<string>();
+    const ids = new Set<string>();
+    threads.forEach((thread) => {
+      const latestMs = latestMessageMsByThread[thread.id] ?? null;
+      if (!latestMs) return;
+      const readMs = getTimestampMs(thread.readBy?.[user.uid]);
+      if (!readMs || latestMs > readMs) ids.add(thread.id);
+    });
+    return ids;
+  }, [threads, latestMessageMsByThread, user]);
 
   const handleCreate = async () => {
     if (!membership?.organizationId || !user) return;
@@ -268,21 +333,40 @@ export default function ChatIndexScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          canCreate ? (
-            <Pressable onPress={() => setShowForm((v) => !v)} style={styles.newThreadButton}>
-              <Text style={styles.newThreadButtonText}>+ Nuevo hilo</Text>
-            </Pressable>
-          ) : null
+          <>
+            {unreadThreadIds.size > 0 ? (
+              <View style={styles.unreadAlert}>
+                <Text style={styles.unreadAlertText}>
+                  Tienes {unreadThreadIds.size} chat{unreadThreadIds.size === 1 ? "" : "s"} sin leer.
+                </Text>
+              </View>
+            ) : null}
+            {canCreate ? (
+              <Pressable onPress={() => setShowForm((v) => !v)} style={styles.newThreadButton}>
+                <Text style={styles.newThreadButtonText}>+ Nuevo hilo</Text>
+              </Pressable>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
           <Text style={styles.empty}>No hay hilos de conversación disponibles.</Text>
         }
         renderItem={({ item }) => (
+          (() => {
+            const isUnread = unreadThreadIds.has(item.id);
+            return (
           <Pressable
-            style={styles.threadCard}
+            style={[styles.threadCard, isUnread && styles.threadCardUnread]}
             onPress={() => router.push(`/chat/${item.id}` as any)}
           >
-            <Text style={styles.threadTitle}>{item.title}</Text>
+            <View style={styles.threadTitleRow}>
+              <Text style={styles.threadTitle}>{item.title}</Text>
+              {isUnread ? (
+                <View style={styles.unreadPill}>
+                  <Text style={styles.unreadPillText}>Nuevo</Text>
+                </View>
+              ) : null}
+            </View>
             <View style={styles.threadMeta}>
               <View style={styles.scopePill}>
                 <Text style={styles.scopePillText}>{item.scope}</Text>
@@ -292,6 +376,8 @@ export default function ChatIndexScreen() {
               ) : null}
             </View>
           </Pressable>
+            );
+          })()
         )}
       />
     </View>
@@ -337,6 +423,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   newThreadButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  unreadAlert: {
+    backgroundColor: colors.amberTint,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  unreadAlertText: { color: colors.amber, fontSize: 12, fontWeight: "700" },
   threadCard: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -345,7 +441,19 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
+  threadCardUnread: {
+    borderColor: colors.amber,
+    backgroundColor: colors.amberTint,
+  },
+  threadTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   threadTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  unreadPill: {
+    backgroundColor: colors.amber,
+    borderRadius: radius.pill,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  unreadPillText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   threadMeta: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, alignItems: "center" },
   scopePill: { backgroundColor: colors.tealTint, borderRadius: radius.pill, paddingVertical: 3, paddingHorizontal: 8 },
   scopePillText: { fontSize: 11, color: colors.tealDark, fontWeight: "600" },
