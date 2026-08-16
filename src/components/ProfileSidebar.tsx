@@ -4,7 +4,6 @@ import { colors, radius, shadow, spacing } from "../theme";
 import AppIcon from "./AppIcon";
 import { Person } from "../types";
 
-const PROGRESS_COLORS = ["#EF4444", "#F97316", "#FBBF24", "#84CC16", "#22C55E", "#14B8A6", "#06B6D4"];
 const NO_INFO = "No informado";
 type BaseValue = string | number | boolean;
 type BaseData = Record<string, BaseValue>;
@@ -96,6 +95,11 @@ interface ProfileSidebarProps {
   person: Person;
   recentPhotos?: string[];
   assignedSalonNames?: string[];
+  showExtendedKeyInfo?: boolean;
+  attendanceMonthPercent?: number | null;
+  attendanceYearPercent?: number | null;
+  emotionalStateLabel?: string | null;
+  emotionalTrend?: number[];
 }
 
 // Card horizontal: avatar+nombre a la izq, secciones info en columnas a la derecha.
@@ -103,6 +107,11 @@ export default function ProfileSidebar({
   person,
   recentPhotos = [],
   assignedSalonNames = [],
+  showExtendedKeyInfo = false,
+  attendanceMonthPercent = null,
+  attendanceYearPercent = null,
+  emotionalStateLabel = null,
+  emotionalTrend = [],
 }: Readonly<ProfileSidebarProps>) {
   const { width } = useWindowDimensions();
   const isMobile = width < 760;
@@ -134,6 +143,9 @@ export default function ProfileSidebar({
     "telefono_emergencia",
     "emergencyContactPhone"
   );
+  const allergies = getFirstText(data, "alergias", "alergia", "alergias_medicamentos");
+  const healthCondition = getFirstText(data, "condicion_salud", "antecedentes_salud", "diagnostico", "enfermedades_base", "prevision_salud", "centro_salud");
+  const authorizedPickup = getFirstText(data, "personas_autorizadas_retiro", "autorizados_retiro", "retiro_autorizado");
 
   const infoRows: Array<{ icon: React.ComponentProps<typeof AppIcon>["name"]; label: string; value: string }> = [
     { icon: "cake-variant", label: "Edad", value: age },
@@ -142,6 +154,23 @@ export default function ProfileSidebar({
     { icon: "account-key", label: "Acceso", value: accessAccount },
     { icon: "phone-alert", label: "Emergencia", value: emergencyContact },
   ];
+
+  const importantRows: Array<{ icon: React.ComponentProps<typeof AppIcon>["name"]; label: string; value: string }> = [
+    { icon: "alert-circle-outline", label: "Alergias", value: allergies },
+    { icon: "heart-pulse", label: "Salud", value: healthCondition },
+    { icon: "phone-alert", label: "Emergencia", value: emergencyContact },
+    { icon: "account-check-outline", label: "Retiro", value: authorizedPickup },
+  ];
+
+  const fullFichaRows = Object.entries(data)
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim().length > 0)
+    .map(([key, value]) => ({
+      key,
+      label: key.replace(/_/g, " ").replace(/\s+/g, " ").trim().replace(/^./, (c) => c.toUpperCase()),
+      value: String(value),
+    }));
+
+  const [showMoreInfo, setShowMoreInfo] = React.useState(false);
 
   return (
     <View style={[styles.card, isMobile && styles.cardMobile]}>
@@ -170,11 +199,24 @@ export default function ProfileSidebar({
             <Text style={styles.sectionLabel}>Desarrollo</Text>
             <Text style={[styles.sectionAction, isMobile && styles.sectionActionMobile]}>Gráfico</Text>
           </View>
-          <View style={[styles.progressBar, isMobile && styles.progressBarMobile]}>
-            {PROGRESS_COLORS.map((c) => (
-              <View key={c} style={[styles.progressSegment, { backgroundColor: c }]} />
-            ))}
-            <View style={[styles.progressThumb, { left: "60%" }]} />
+          <View style={styles.kpiList}>
+            <KpiRow
+              label="Asistencia mes"
+              value={attendanceMonthPercent == null ? "--%" : `${attendanceMonthPercent}%`}
+              ratio={attendanceMonthPercent == null ? 0 : attendanceMonthPercent / 100}
+              color="#0F766E"
+            />
+            <KpiRow
+              label="Asistencia año"
+              value={attendanceYearPercent == null ? "--%" : `${attendanceYearPercent}%`}
+              ratio={attendanceYearPercent == null ? 0 : attendanceYearPercent / 100}
+              color="#0369A1"
+            />
+            <EmotionalRow
+              label="Estado emocional"
+              stateLabel={emotionalStateLabel || "No informado"}
+              trend={emotionalTrend}
+            />
           </View>
         </View>
 
@@ -200,7 +242,7 @@ export default function ProfileSidebar({
         <View style={[styles.section, isMobile && styles.sectionMobile]}>
           <Text style={styles.sectionLabel}>Datos clave</Text>
           <View style={styles.infoList}>
-            {infoRows.map((row) => (
+            {(showExtendedKeyInfo ? importantRows : infoRows).map((row) => (
               <View key={row.label} style={styles.infoRow}>
                 <View style={styles.infoIconWrap}>
                   <AppIcon name={row.icon} size={15} color={colors.tealDark} />
@@ -212,7 +254,82 @@ export default function ProfileSidebar({
               </View>
             ))}
           </View>
+          {showExtendedKeyInfo ? (
+            <>
+              <Pressable style={styles.moreInfoBtn} onPress={() => setShowMoreInfo((prev) => !prev)}>
+                <AppIcon name={showMoreInfo ? "chevron-up" : "chevron-down"} size={14} color={colors.teal} />
+                <Text style={styles.moreInfoText}>{showMoreInfo ? "Ocultar info" : "+ info"}</Text>
+              </Pressable>
+              {showMoreInfo ? (
+                <View style={styles.fullInfoBox}>
+                  {fullFichaRows.length === 0 ? (
+                    <Text style={styles.fullInfoEmpty}>Sin datos adicionales.</Text>
+                  ) : (
+                    fullFichaRows.map((row) => (
+                      <View key={row.key} style={styles.fullInfoRow}>
+                        <Text style={styles.fullInfoKey}>{row.label}</Text>
+                        <Text style={styles.fullInfoValue}>{row.value}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ) : null}
+            </>
+          ) : null}
         </View>
+      </View>
+    </View>
+  );
+}
+
+function KpiRow({
+  label,
+  value,
+  ratio,
+  color,
+}: {
+  label: string;
+  value: string;
+  ratio: number;
+  color: string;
+}) {
+  const safeRatio = Math.max(0, Math.min(1, ratio));
+  return (
+    <View style={styles.kpiRow}>
+      <View style={styles.kpiHeader}>
+        <Text style={styles.kpiLabel}>{label}</Text>
+        <Text style={styles.kpiValue}>{value}</Text>
+      </View>
+      <View style={styles.kpiTrack}>
+        <View style={[styles.kpiFill, { width: `${Math.round(safeRatio * 100)}%`, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function EmotionalRow({
+  label,
+  stateLabel,
+  trend,
+}: {
+  label: string;
+  stateLabel: string;
+  trend: number[];
+}) {
+  const fallback = [0.3, 0.45, 0.4, 0.55, 0.5];
+  const chart = trend.length > 0 ? trend.map((v) => Math.max(0.05, Math.min(1, v / 100))) : fallback;
+  return (
+    <View style={styles.kpiRow}>
+      <View style={styles.kpiHeader}>
+        <Text style={styles.kpiLabel}>{label}</Text>
+        <Text style={styles.kpiValue} numberOfLines={1}>{stateLabel}</Text>
+      </View>
+      <View style={styles.emotionChart}>
+        {chart.slice(-7).map((v, index) => (
+          <View key={`${index}-${v}`} style={styles.emotionBarWrap}>
+            <View style={[styles.emotionBar, { height: `${Math.round(v * 100)}%` }]} />
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -280,25 +397,39 @@ const styles = StyleSheet.create({
   sectionAction: { fontSize: 10, color: colors.teal, fontWeight: "600" },
   sectionActionMobile: { opacity: 0, width: 0 },
   arrowRow: { flexDirection: "row", gap: 2 },
-  progressBar: {
-    flexDirection: "row",
+  kpiList: { gap: 8 },
+  kpiRow: { gap: 4 },
+  kpiHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  kpiLabel: { fontSize: 10, color: colors.slate, fontWeight: "700", textTransform: "uppercase" },
+  kpiValue: { fontSize: 11, color: colors.ink, fontWeight: "700", flexShrink: 1, textAlign: "right" },
+  kpiTrack: {
+    width: "100%",
     height: 7,
-    borderRadius: 4,
+    borderRadius: 6,
+    backgroundColor: colors.line,
     overflow: "hidden",
-    position: "relative",
   },
-  progressBarMobile: { height: 5 },
-  progressSegment: { flex: 1 },
-  progressThumb: {
-    position: "absolute",
-    top: -3,
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    backgroundColor: "#fff",
-    borderWidth: 2,
-    borderColor: colors.ink,
-    marginLeft: -7,
+  kpiFill: { height: "100%", borderRadius: 6 },
+  emotionChart: {
+    width: "100%",
+    height: 36,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  emotionBarWrap: {
+    flex: 1,
+    height: "100%",
+    backgroundColor: colors.line,
+    borderRadius: 4,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  emotionBar: {
+    width: "100%",
+    backgroundColor: "#1E40AF",
+    borderRadius: 4,
+    minHeight: 4,
   },
   photo: { width: 62, height: 62, borderRadius: 10, marginRight: spacing.xs },
   photoPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
@@ -315,5 +446,29 @@ const styles = StyleSheet.create({
   infoTextWrap: { flex: 1, minWidth: 0 },
   infoLabel: { fontSize: 10, fontWeight: "700", color: colors.slate, textTransform: "uppercase" },
   infoValue: { fontSize: 11, fontWeight: "600", color: colors.ink, lineHeight: 15 },
+  moreInfoBtn: {
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.teal,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  moreInfoText: { fontSize: 12, fontWeight: "700", color: colors.teal },
+  fullInfoBox: {
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: spacing.sm,
+    gap: 6,
+  },
+  fullInfoRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  fullInfoKey: { fontSize: 11, color: colors.slate, fontWeight: "700", minWidth: 120 },
+  fullInfoValue: { fontSize: 11, color: colors.ink, flex: 1 },
+  fullInfoEmpty: { fontSize: 11, color: colors.slate },
 });
 

@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { doc, collection, onSnapshot, orderBy, query, getDoc } from "firebase/firestore";
 import { db } from "../../../../src/firebase";
 import { useAuth } from "../../../../src/context/AuthContext";
-import { Entry, Person, Template } from "../../../../src/types";
-import { EntryCard } from "../../../../src/components/EntryCard";
-import { FieldDisplay } from "../../../../src/components/SectionField";
+import { Entry, Person, Salon } from "../../../../src/types";
+import { TimelineEntryCard } from "../../../../src/components/TimelineEntryCard";
+import ProfileSidebar from "../../../../src/components/ProfileSidebar";
 import { colors, radius, spacing } from "../../../../src/theme";
 import Breadcrumb from "../../../../src/components/Breadcrumb";
+import { groupEntriesByDay } from "../../../../src/utils/entries";
+import { listenSalons } from "../../../../src/data/adminRepository";
+
+type TimelineListItem =
+  | { kind: "header"; key: string; label: string }
+  | { kind: "entry"; key: string; entry: Entry; isLast: boolean };
 
 export default function PersonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,9 +22,10 @@ export default function PersonScreen() {
   const router = useRouter();
 
   const [person, setPerson] = useState<Person | null>(null);
-  const [template, setTemplate] = useState<Template | null>(null);
+  const [salons, setSalons] = useState<Salon[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
+  const canEdit = membership?.role === "admin" || membership?.role === "editor" || membership?.role === "profesional";
 
   useEffect(() => {
     if (!membership?.organizationId || !id) return;
@@ -28,15 +35,15 @@ export default function PersonScreen() {
       if (personSnap.exists()) {
         const personData = { id: personSnap.id, ...personSnap.data() } as Person;
         setPerson(personData);
-
-        const templateSnap = await getDoc(doc(db, "templates", personData.templateId));
-        if (templateSnap.exists()) {
-          setTemplate({ id: templateSnap.id, ...templateSnap.data() } as Template);
-        }
       }
       setLoading(false);
     })();
   }, [membership?.organizationId, id]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenSalons(membership.organizationId, setSalons);
+  }, [membership?.organizationId]);
 
   useEffect(() => {
     if (!membership?.organizationId || !id) return;
@@ -52,6 +59,25 @@ export default function PersonScreen() {
 
     return unsubscribe;
   }, [membership?.organizationId, id]);
+
+  const timelineItems = useMemo<TimelineListItem[]>(() => {
+    const groups = groupEntriesByDay(entries);
+    let entryIndex = 0;
+    const totalEntries = entries.length;
+    return groups.flatMap((group) => {
+      const header: TimelineListItem = { kind: "header", key: `header-${group.dateKey}`, label: group.label };
+      const entryItems = group.items.map((entry) => {
+        entryIndex += 1;
+        return {
+          kind: "entry",
+          key: entry.id,
+          entry,
+          isLast: entryIndex === totalEntries,
+        } as TimelineListItem;
+      });
+      return [header, ...entryItems];
+    });
+  }, [entries]);
 
   if (loading) {
     return (
@@ -69,37 +95,42 @@ export default function PersonScreen() {
     );
   }
 
+  const assignedSalonNames = (person.salonIds ?? [])
+    .map((salonId) => salons.find((s) => s.id === salonId)?.name)
+    .filter(Boolean) as string[];
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: person.name }]} />
 
       <FlatList
-        data={entries}
-        keyExtractor={(item) => item.id}
+        data={timelineItems}
+        keyExtractor={(item) => item.key}
         contentContainerStyle={{ padding: spacing.lg }}
         ListHeaderComponent={
           <View style={{ marginBottom: spacing.lg }}>
-            {template?.baseSections.map((section) => (
-              <View key={section.id} style={styles.baseCard}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                {section.fields.map((field) => (
-                  <FieldDisplay key={field.id} label={field.label} value={person.baseData?.[field.id]} />
-                ))}
-              </View>
-            ))}
+            <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} showExtendedKeyInfo />
             <Text style={styles.timelineLabel}>Registros</Text>
           </View>
         }
-        renderItem={({ item }) => <EntryCard entry={item} />}
+        renderItem={({ item }) =>
+          item.kind === "header" ? (
+            <Text style={styles.dayHeader}>{item.label}</Text>
+          ) : (
+            <TimelineEntryCard entry={item.entry} isLast={item.isLast} />
+          )
+        }
         ListEmptyComponent={
           <Text style={styles.emptyText}>Todavía no hay registros para esta persona.</Text>
         }
       />
 
-      <Pressable style={styles.fab} onPress={() => router.push(`/person/${id}/nuevo-registro`)}>
-        <Text style={styles.fabText}>+</Text>
-      </Pressable>
+      {canEdit ? (
+        <Pressable style={styles.fab} onPress={() => router.push(`/person/${id}/nuevo-registro`)}>
+          <Text style={styles.fabText}>+</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -107,21 +138,6 @@ export default function PersonScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  baseCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-    color: colors.slate,
-    marginBottom: spacing.xs,
-  },
   timelineLabel: {
     fontSize: 11,
     textTransform: "uppercase",
@@ -129,6 +145,14 @@ const styles = StyleSheet.create({
     color: colors.slate,
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  dayHeader: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.ink,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    textTransform: "capitalize",
   },
   emptyText: { fontSize: 13, color: colors.slate, textAlign: "center", marginTop: spacing.lg },
   fab: {

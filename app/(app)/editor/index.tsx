@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
-import { listenMyProfile, listenParticipants, listenPlans, listenSalons } from "../../../src/data/adminRepository";
+import { listenMyProfile, listenParticipants, listenSalons } from "../../../src/data/adminRepository";
 import { AttendanceSummary, getAttendanceSummaries } from "../../../src/data/attendanceRepository";
 import { colors, radius, shadow, spacing } from "../../../src/theme";
-import { EconomicPlan, Person, ProfileRecord, Salon } from "../../../src/types";
+import { Person, ProfileRecord, Salon } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 import AppIcon from "../../../src/components/AppIcon";
 
@@ -14,12 +14,13 @@ export default function EditorPanelScreen() {
   const router = useRouter();
   const [allParticipants, setAllParticipants] = useState<Person[]>([]);
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
-  const [plans, setPlans] = useState<EconomicPlan[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [attendanceByParticipant, setAttendanceByParticipant] = useState<Record<string, AttendanceSummary>>({});
   const [loading, setLoading] = useState(true);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [search, setSearch] = useState("");
+  const [expandedInfoIds, setExpandedInfoIds] = useState<Record<string, boolean>>({});
+  const [selectedSalonId, setSelectedSalonId] = useState<string>("ALL");
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -37,11 +38,6 @@ export default function EditorPanelScreen() {
 
   useEffect(() => {
     if (!membership?.organizationId) return;
-    return listenPlans(membership.organizationId, setPlans);
-  }, [membership?.organizationId]);
-
-  useEffect(() => {
-    if (!membership?.organizationId) return;
     return listenSalons(membership.organizationId, setSalons);
   }, [membership?.organizationId]);
 
@@ -52,6 +48,21 @@ export default function EditorPanelScreen() {
     if (mySalonIds.size === 0) return [];
     return allParticipants.filter((p) => (p.salonIds ?? []).some((id) => mySalonIds.has(id)));
   }, [allParticipants, mySalonIds]);
+
+  const mySalons = useMemo(() => {
+    return salons.filter((s) => mySalonIds.has(s.id));
+  }, [salons, mySalonIds]);
+
+  const participantsBySalon = useMemo(() => {
+    if (selectedSalonId === "ALL") return participants;
+    return participants.filter((p) => (p.salonIds ?? []).includes(selectedSalonId));
+  }, [participants, selectedSalonId]);
+
+  useEffect(() => {
+    if (selectedSalonId !== "ALL" && !mySalons.some((s) => s.id === selectedSalonId)) {
+      setSelectedSalonId("ALL");
+    }
+  }, [mySalons, selectedSalonId]);
 
   useEffect(() => {
     if (!membership?.organizationId) return;
@@ -81,9 +92,9 @@ export default function EditorPanelScreen() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return participants;
-    return participants.filter((p) => p.name.toLowerCase().includes(term));
-  }, [participants, search]);
+    if (!term) return participantsBySalon;
+    return participantsBySalon.filter((p) => p.name.toLowerCase().includes(term));
+  }, [participantsBySalon, search]);
 
   return (
     <View style={styles.container}>
@@ -97,6 +108,31 @@ export default function EditorPanelScreen() {
             <View style={styles.profilePill}>
               <AppIcon name="account-tie" size={14} color={colors.tealDark} />
               <Text style={styles.profilePillText}>{myProfile.displayName}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.filterWrap}>
+          {mySalons.length > 1 ? (
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Filtrar por salón</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipRow}>
+                <Pressable
+                  style={[styles.filterChip, selectedSalonId === "ALL" && styles.filterChipActive]}
+                  onPress={() => setSelectedSalonId("ALL")}
+                >
+                  <Text style={[styles.filterChipText, selectedSalonId === "ALL" && styles.filterChipTextActive]}>Todos</Text>
+                </Pressable>
+                {mySalons.map((salon) => (
+                  <Pressable
+                    key={salon.id}
+                    style={[styles.filterChip, selectedSalonId === salon.id && styles.filterChipActive]}
+                    onPress={() => setSelectedSalonId(salon.id)}
+                  >
+                    <Text style={[styles.filterChipText, selectedSalonId === salon.id && styles.filterChipTextActive]}>{salon.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
           ) : null}
         </View>
@@ -129,13 +165,15 @@ export default function EditorPanelScreen() {
             </View>
           ) : (
             filtered.map((item) => {
-              const plan = item.planId ? plans.find((p) => p.id === item.planId) : null;
               const salonList = (item.salonIds ?? []).map(
                 (sid) => salons.find((s) => s.id === sid)?.name ?? sid
               );
               const comuna = getComunaFromBaseData(item);
               const telefono = getTelefonoFromBaseData(item);
               const attendance = attendanceByParticipant[item.id];
+              const important = getImportantInfo(item);
+              const isExpanded = !!expandedInfoIds[item.id];
+              const allFichaRows = getFullFichaRows(item);
 
               return (
                 <Pressable
@@ -154,15 +192,18 @@ export default function EditorPanelScreen() {
                     )}
                     <View style={styles.cardInfoCol}>
                       <Text style={styles.name}>{item.name}</Text>
-                      {plan ? (
-                        <View style={styles.planBadge}>
-                          <AppIcon name="cash-multiple" size={11} color={colors.amber} />
-                          <Text style={styles.planBadgeText}>{plan.name}</Text>
-                        </View>
-                      ) : null}
+                      <Text style={styles.cardSubtleText}>Ficha prioritaria visible para el salón</Text>
                     </View>
                     <View style={[styles.statusDot, item.status === "activo" ? styles.statusDotActive : styles.statusDotInactive]} />
                     <AppIcon name="chevron-right" size={18} color={colors.slate} />
+                  </View>
+
+                  <View style={styles.importantBox}>
+                    <Text style={styles.importantTitle}>Información importante</Text>
+                    <InfoLine icon="alert-circle-outline" label="Alergias" value={important.alergias} />
+                    <InfoLine icon="heart-pulse" label="Condición de salud" value={important.salud} />
+                    <InfoLine icon="phone-alert" label="Contacto emergencia" value={important.emergencia} />
+                    <InfoLine icon="account-check-outline" label="Autorizados a retirar" value={important.autorizadosRetiro} />
                   </View>
 
                   {/* Grilla de info */}
@@ -195,6 +236,29 @@ export default function EditorPanelScreen() {
                     </View>
                   </View>
 
+                  <Pressable
+                    style={styles.moreInfoBtn}
+                    onPress={() => setExpandedInfoIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                  >
+                    <AppIcon name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.teal} />
+                    <Text style={styles.moreInfoText}>{isExpanded ? "Ocultar info" : "+ info"}</Text>
+                  </Pressable>
+
+                  {isExpanded ? (
+                    <View style={styles.fullInfoBox}>
+                      {allFichaRows.length === 0 ? (
+                        <Text style={styles.fullInfoEmpty}>Sin datos adicionales en la ficha.</Text>
+                      ) : (
+                        allFichaRows.map((row) => (
+                          <View key={row.key} style={styles.fullInfoRow}>
+                            <Text style={styles.fullInfoKey}>{row.label}</Text>
+                            <Text style={styles.fullInfoValue}>{row.value}</Text>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  ) : null}
+
                   {/* Footer: botón de nuevo registro */}
                   <View style={styles.cardFooter}>
                     <Pressable
@@ -215,10 +279,52 @@ export default function EditorPanelScreen() {
   );
 }
 
+function getFirstFilled(baseData: Record<string, string | number | boolean> | undefined, keys: string[]): string {
+  if (!baseData) return "No informado";
+  for (const key of keys) {
+    const raw = baseData[key];
+    if (raw === undefined || raw === null) continue;
+    const text = String(raw).trim();
+    if (text) return text;
+  }
+  return "No informado";
+}
+
+function prettifyKey(key: string): string {
+  return key.replace(/_/g, " ").replace(/\s+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
+}
+
+function getImportantInfo(person: Person) {
+  const baseData = person.baseData;
+  return {
+    alergias: getFirstFilled(baseData, ["alergias", "alergia", "alergias_medicamentos"]),
+    salud: getFirstFilled(baseData, ["condicion_salud", "antecedentes_salud", "diagnostico", "enfermedades_base", "prevision_salud", "centro_salud"]),
+    emergencia: getFirstFilled(baseData, ["contacto_emergencia_nombre", "contacto_emergencia", "contacto_emergencia_telefono", "telefono_emergencia"]),
+    autorizadosRetiro: getFirstFilled(baseData, ["personas_autorizadas_retiro", "autorizados_retiro", "retiro_autorizado"]),
+  };
+}
+
+function getFullFichaRows(person: Person): Array<{ key: string; label: string; value: string }> {
+  const entries = Object.entries(person.baseData ?? {})
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim().length > 0)
+    .map(([key, value]) => ({ key, label: prettifyKey(key), value: String(value) }));
+  return entries;
+}
+
+function InfoLine({ icon, label, value }: { icon: React.ComponentProps<typeof AppIcon>["name"]; label: string; value: string }) {
+  return (
+    <View style={styles.importantRow}>
+      <AppIcon name={icon} size={14} color={colors.slate} />
+      <Text style={styles.importantLabel}>{label}:</Text>
+      <Text style={styles.importantValue} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+}
+
 function getEmptyMessage(search: string, salonCount: number): string {
   if (search.trim()) return "Sin resultados para tu búsqueda.";
   if (salonCount === 0) return "No tienes salones asignados aún.";
-  return "No hay participantes en tus salones.";
+  return "No hay participantes con los filtros actuales.";
 }
 
 function getInitials(name: string) {
@@ -270,6 +376,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.ink, paddingVertical: 6 },
+  filterWrap: { gap: spacing.sm, marginBottom: spacing.md },
+  filterGroup: { gap: spacing.xs },
+  filterLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: colors.slate,
+  },
+  filterChipRow: { flexDirection: "row", gap: spacing.xs },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: "rgba(255,255,255,0.8)",
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  filterChipActive: { borderColor: colors.teal, backgroundColor: colors.tealTint },
+  filterChipText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
+  filterChipTextActive: { color: colors.tealDark, fontWeight: "700" },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   emptyWrap: { alignItems: "center", marginTop: spacing.xl, gap: spacing.sm },
   empty: { color: colors.slate, fontSize: 13, textAlign: "center" },
@@ -289,24 +416,50 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { backgroundColor: colors.tealTint, alignItems: "center", justifyContent: "center" },
   avatarInitials: { color: colors.tealDark, fontSize: 14, fontWeight: "700" },
   name: { fontSize: 15, fontWeight: "700", color: colors.ink },
-  planBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 3,
-    alignSelf: "flex-start",
-    backgroundColor: colors.amberTint,
-    borderRadius: radius.pill,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  planBadgeText: { fontSize: 11, fontWeight: "600", color: colors.amber },
+  cardSubtleText: { fontSize: 11, color: colors.slate, marginTop: 2 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusDotActive: { backgroundColor: "#22C55E" },
   statusDotInactive: { backgroundColor: colors.slate },
+  importantBox: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(248,250,252,0.9)",
+    padding: spacing.sm,
+    gap: 6,
+  },
+  importantTitle: { fontSize: 11, fontWeight: "700", color: colors.ink, textTransform: "uppercase", letterSpacing: 0.4 },
+  importantRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  importantLabel: { fontSize: 11, color: colors.slate, fontWeight: "700" },
+  importantValue: { fontSize: 11, color: colors.ink, flex: 1 },
   infoGrid: { marginTop: spacing.sm, gap: 5 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   infoText: { fontSize: 12, color: colors.slate, flex: 1 },
+  moreInfoBtn: {
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.teal,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  moreInfoText: { fontSize: 12, fontWeight: "700", color: colors.teal },
+  fullInfoBox: {
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: spacing.sm,
+    gap: 6,
+  },
+  fullInfoRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  fullInfoKey: { fontSize: 11, color: colors.slate, fontWeight: "700", minWidth: 120 },
+  fullInfoValue: { fontSize: 11, color: colors.ink, flex: 1 },
+  fullInfoEmpty: { fontSize: 11, color: colors.slate },
   cardFooter: {
     marginTop: spacing.sm,
     paddingTop: spacing.sm,

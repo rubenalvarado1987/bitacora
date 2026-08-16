@@ -20,6 +20,7 @@ import ProfileSidebar from "../../../../src/components/ProfileSidebar";
 import DailySummaryCard from "../../../../src/components/DailySummaryCard";
 import { TimelineEntryCard } from "../../../../src/components/TimelineEntryCard";
 import AppIcon from "../../../../src/components/AppIcon";
+import { groupEntriesByDay } from "../../../../src/utils/entries";
 
 export default function ApoderadoParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -119,13 +120,27 @@ export default function ApoderadoParticipantScreen() {
       {entries.length === 0 ? (
         <Text style={styles.empty}>No hay registros disponibles aún.</Text>
       ) : (
-        entries.map((entry, index) => (
-          <TimelineEntryCard
-            key={entry.id}
-            entry={entry}
-            isLast={index === entries.length - 1}
-          />
-        ))
+        (() => {
+          const groups = groupEntriesByDay(entries);
+          return groups.map((group, groupIndex) => {
+            const entriesBefore = groups.slice(0, groupIndex).reduce((acc, g) => acc + g.items.length, 0);
+            return (
+              <View key={group.dateKey} style={styles.dayGroup}>
+                <Text style={styles.dayHeader}>{group.label}</Text>
+                {group.items.map((entry, index) => {
+                  const globalIndex = entriesBefore + index;
+                  return (
+                    <TimelineEntryCard
+                      key={entry.id}
+                      entry={entry}
+                      isLast={globalIndex === entries.length - 1}
+                    />
+                  );
+                })}
+              </View>
+            );
+          });
+        })()
       )}
     </>
   );
@@ -133,6 +148,15 @@ export default function ApoderadoParticipantScreen() {
   const assignedSalonNames = (person.salonIds ?? [])
     .map((salonId) => salons.find((s) => s.id === salonId)?.name)
     .filter(Boolean) as string[];
+
+  const emotionalEntries = entries
+    .filter((e) => e.type === "Emocional")
+    .slice(0, 7);
+  const emotionalTrend = emotionalEntries
+    .map((e) => normalizeEmotionScore(e.values?.estado_animo))
+    .filter((score): score is number => score !== null)
+    .reverse();
+  const latestEmotionalState = emotionalEntries[0]?.values?.estado_animo;
 
   return (
     <View style={styles.container}>
@@ -149,11 +173,29 @@ export default function ApoderadoParticipantScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.singleColContent}>
-          <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} />
+          <ProfileSidebar
+            person={person}
+            assignedSalonNames={assignedSalonNames}
+            attendanceMonthPercent={attendance?.monthPercent ?? null}
+            attendanceYearPercent={attendance?.yearPercent ?? null}
+            emotionalStateLabel={typeof latestEmotionalState === "string" ? latestEmotionalState : null}
+            emotionalTrend={emotionalTrend}
+          />
           <View style={styles.timelineWrap}>{timelineContent}</View>
         </ScrollView>
     </View>
   );
+}
+
+function normalizeEmotionScore(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim().toLowerCase();
+  if (!text) return null;
+  if (text.includes("feliz") || text.includes("content") || text.includes("tranquil") || text.includes("calm")) return 85;
+  if (text.includes("bien") || text.includes("estable")) return 70;
+  if (text.includes("neutral") || text.includes("normal")) return 55;
+  if (text.includes("triste") || text.includes("ansio") || text.includes("llanto") || text.includes("irrit")) return 35;
+  return 60;
 }
 
 const styles = StyleSheet.create({
@@ -188,6 +230,14 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: spacing.md,
     marginTop: spacing.xs,
+  },
+  dayGroup: { marginBottom: spacing.sm },
+  dayHeader: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.ink,
+    marginBottom: spacing.sm,
+    textTransform: "capitalize",
   },
   empty: { fontSize: 13, color: colors.slate, textAlign: "center", marginTop: spacing.lg },
 });

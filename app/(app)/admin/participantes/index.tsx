@@ -5,25 +5,20 @@ import { useAuth } from "../../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../../src/theme";
 import Breadcrumb from "../../../../src/components/Breadcrumb";
 import AppIcon from "../../../../src/components/AppIcon";
-import { EconomicPlan, Person, Salon } from "../../../../src/types";
-import { listenParticipants, listenPlans, listenSalons, removeParticipant } from "../../../../src/data/adminRepository";
+import { Person, Salon } from "../../../../src/types";
+import { listenParticipants, listenSalons, removeParticipant } from "../../../../src/data/adminRepository";
 
 export default function ParticipantsListScreen() {
   const { membership } = useAuth();
   const router = useRouter();
   const [items, setItems] = useState<Person[]>([]);
-  const [plans, setPlans] = useState<EconomicPlan[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [search, setSearch] = useState("");
+  const [expandedInfoIds, setExpandedInfoIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!membership?.organizationId) return;
     return listenParticipants(membership.organizationId, setItems);
-  }, [membership?.organizationId]);
-
-  useEffect(() => {
-    if (!membership?.organizationId) return;
-    return listenPlans(membership.organizationId, setPlans);
   }, [membership?.organizationId]);
 
   useEffect(() => {
@@ -91,7 +86,9 @@ export default function ParticipantsListScreen() {
       ) : (
         filtered.map((item) => {
           const salonList = salonNames(item.salonIds);
-          const plan = plans.find((p) => p.id === item.planId);
+          const important = getImportantInfo(item);
+          const isExpanded = !!expandedInfoIds[item.id];
+          const allFichaRows = getFullFichaRows(item);
           return (
             <Pressable
               key={item.id}
@@ -108,9 +105,17 @@ export default function ParticipantsListScreen() {
                 )}
                 <View style={styles.listInfoCol}>
                   <Text style={styles.listTitle}>{item.name}</Text>
-                  <Text style={styles.listSubtitle}>{plan ? plan.name : "Sin plan asignado"}</Text>
+                  <Text style={styles.listSubtitle}>Información crítica del participante</Text>
                 </View>
                 <AppIcon name="chevron-right" size={20} color={colors.slate} />
+              </View>
+
+              <View style={styles.importantBox}>
+                <Text style={styles.importantTitle}>Información importante</Text>
+                <InfoLine icon="alert-circle-outline" label="Alergias" value={important.alergias} />
+                <InfoLine icon="heart-pulse" label="Condición de salud" value={important.salud} />
+                <InfoLine icon="phone-alert" label="Contacto emergencia" value={important.emergencia} />
+                <InfoLine icon="account-check-outline" label="Autorizados a retirar" value={important.autorizadosRetiro} />
               </View>
 
               <View style={styles.badgeRow}>
@@ -137,7 +142,33 @@ export default function ParticipantsListScreen() {
                 </View>
               </View>
 
+              <Pressable
+                style={styles.moreInfoBtn}
+                onPress={() => setExpandedInfoIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+              >
+                <AppIcon name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.teal} />
+                <Text style={styles.moreInfoText}>{isExpanded ? "Ocultar info" : "+ info"}</Text>
+              </Pressable>
+
+              {isExpanded ? (
+                <View style={styles.fullInfoBox}>
+                  {allFichaRows.length === 0 ? (
+                    <Text style={styles.fullInfoEmpty}>Sin datos adicionales en la ficha.</Text>
+                  ) : (
+                    allFichaRows.map((row) => (
+                      <View key={row.key} style={styles.fullInfoRow}>
+                        <Text style={styles.fullInfoKey}>{row.label}</Text>
+                        <Text style={styles.fullInfoValue}>{row.value}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ) : null}
+
               <View style={styles.actionsRow}>
+                <Pressable onPress={() => router.push(`/person/${item.id}`)}>
+                  <Text style={styles.actionLink}>Ver bitácora</Text>
+                </Pressable>
                 <Pressable onPress={() => router.push(`/admin/participantes/${item.id}`)}>
                   <Text style={styles.actionLink}>Editar</Text>
                 </Pressable>
@@ -150,6 +181,48 @@ export default function ParticipantsListScreen() {
         })
       )}
     </ScrollView>
+  );
+}
+
+function getFirstFilled(baseData: Record<string, string | number | boolean> | undefined, keys: string[]): string {
+  if (!baseData) return "No informado";
+  for (const key of keys) {
+    const raw = baseData[key];
+    if (raw === undefined || raw === null) continue;
+    const text = String(raw).trim();
+    if (text) return text;
+  }
+  return "No informado";
+}
+
+function prettifyKey(key: string): string {
+  return key.replace(/_/g, " ").replace(/\s+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
+}
+
+function getImportantInfo(person: Person) {
+  const baseData = person.baseData;
+  return {
+    alergias: getFirstFilled(baseData, ["alergias", "alergia", "alergias_medicamentos"]),
+    salud: getFirstFilled(baseData, ["condicion_salud", "antecedentes_salud", "diagnostico", "enfermedades_base", "prevision_salud", "centro_salud"]),
+    emergencia: getFirstFilled(baseData, ["contacto_emergencia_nombre", "contacto_emergencia", "contacto_emergencia_telefono", "telefono_emergencia"]),
+    autorizadosRetiro: getFirstFilled(baseData, ["personas_autorizadas_retiro", "autorizados_retiro", "retiro_autorizado"]),
+  };
+}
+
+function getFullFichaRows(person: Person): Array<{ key: string; label: string; value: string }> {
+  const entries = Object.entries(person.baseData ?? {})
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim().length > 0)
+    .map(([key, value]) => ({ key, label: prettifyKey(key), value: String(value) }));
+  return entries;
+}
+
+function InfoLine({ icon, label, value }: { icon: React.ComponentProps<typeof AppIcon>["name"]; label: string; value: string }) {
+  return (
+    <View style={styles.importantRow}>
+      <AppIcon name={icon} size={14} color={colors.slate} />
+      <Text style={styles.importantLabel}>{label}:</Text>
+      <Text style={styles.importantValue} numberOfLines={2}>{value}</Text>
+    </View>
   );
 }
 
@@ -211,6 +284,19 @@ const styles = StyleSheet.create({
   listAvatarInitials: { color: colors.tealDark, fontSize: 13, fontWeight: "700" },
   listTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
   listSubtitle: { fontSize: 12, color: colors.slate, marginTop: 1 },
+  importantBox: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(248,250,252,0.9)",
+    padding: spacing.sm,
+    gap: 6,
+  },
+  importantTitle: { fontSize: 11, fontWeight: "700", color: colors.ink, textTransform: "uppercase", letterSpacing: 0.4 },
+  importantRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  importantLabel: { fontSize: 11, color: colors.slate, fontWeight: "700" },
+  importantValue: { fontSize: 11, color: colors.ink, flex: 1 },
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
   statusBadge: {
     flexDirection: "row",
@@ -231,6 +317,30 @@ const styles = StyleSheet.create({
   infoGrid: { marginTop: spacing.sm, gap: 6 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   infoText: { fontSize: 12, color: colors.slate, flexShrink: 1 },
+  moreInfoBtn: {
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.teal,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  moreInfoText: { fontSize: 12, fontWeight: "700", color: colors.teal },
+  fullInfoBox: {
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: spacing.sm,
+    gap: 6,
+  },
+  fullInfoRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  fullInfoKey: { fontSize: 11, color: colors.slate, fontWeight: "700", minWidth: 120 },
+  fullInfoValue: { fontSize: 11, color: colors.ink, flex: 1 },
+  fullInfoEmpty: { fontSize: 11, color: colors.slate },
   actionsRow: {
     flexDirection: "row",
     gap: spacing.md,
