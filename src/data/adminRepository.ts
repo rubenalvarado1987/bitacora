@@ -3,6 +3,7 @@ import { db } from "../firebase";
 import {
   EconomicPlan,
   EmergencyContactRelationship,
+  Jornada,
   Person,
   ProfileRecord,
   Salon,
@@ -57,10 +58,18 @@ export interface SalonDraft {
   active: boolean;
   professionalIds: string[];
   participantIds: string[];
+  jornadaId?: string;
+  jornadaName?: string;
   schedule?: SalonSchedule;
   maxCapacity?: number | "";
   educationalLevel?: SalonEducationalLevel | "";
   color?: string | null;
+}
+
+export interface JornadaDraft {
+  name: string;
+  active: boolean;
+  schedule: SalonSchedule;
 }
 
 export function listenProfiles(organizationId: string, onChange: (items: ProfileRecord[]) => void) {
@@ -239,6 +248,32 @@ export function listenSalons(organizationId: string, onChange: (items: Salon[]) 
   });
 }
 
+export function listenJornadas(organizationId: string, onChange: (items: Jornada[]) => void) {
+  const q = query(collection(db, "organizations", organizationId, "jornadas"), orderBy("name"));
+  return onSnapshot(q, (snapshot) => {
+    onChange(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Jornada)));
+  });
+}
+
+export async function saveJornada(organizationId: string, draft: JornadaDraft, id?: string) {
+  const ref = id
+    ? doc(db, "organizations", organizationId, "jornadas", id)
+    : doc(collection(db, "organizations", organizationId, "jornadas"));
+
+  await setDoc(ref, {
+    organizationId,
+    name: draft.name,
+    active: draft.active,
+    schedule: draft.schedule,
+  });
+
+  return ref.id;
+}
+
+export async function removeJornada(organizationId: string, jornadaId: string) {
+  await deleteDoc(doc(db, "organizations", organizationId, "jornadas", jornadaId));
+}
+
 export async function saveSalon(organizationId: string, draft: SalonDraft, id?: string) {
   const ref = id
     ? doc(db, "organizations", organizationId, "salons", id)
@@ -247,6 +282,8 @@ export async function saveSalon(organizationId: string, draft: SalonDraft, id?: 
   await setDoc(ref, {
     organizationId,
     ...draft,
+    jornadaId: draft.jornadaId || null,
+    jornadaName: draft.jornadaName || null,
     schedule: draft.schedule && draft.schedule.length > 0 ? draft.schedule : null,
     maxCapacity: draft.maxCapacity || null,
     educationalLevel: draft.educationalLevel || null,

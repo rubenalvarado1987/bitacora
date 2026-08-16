@@ -13,7 +13,9 @@ const cards: Array<{
   body: string;
 }> = [
   { href: "/admin/dashboard", title: "Dashboard", icon: "chart-box-outline", body: "Resumen operativo: participantes, salones y agenda del día." },
+  { href: "/calendario", title: "Calendario", icon: "calendar-month-outline", body: "Ver y gestionar eventos, cumpleaños y feriados del centro." },
   { href: "/admin/organizacion", title: "Organización", icon: "domain", body: "Nombre y logo de la organización, visibles en toda la app." },
+  { href: "/admin/jornadas", title: "Jornadas", icon: "clock-outline", body: "Define jornadas con horarios de inicio y término para reutilizar en salones." },
   { href: "/admin/salones", title: "Salones", icon: "door", body: "Crear salones y asignar participantes y profesionales." },
   { href: "/admin/planes", title: "Planes económicos", icon: "cash-multiple", body: "Registrar planes y asociarlos a participantes." },
   { href: "/admin/profesionales", title: "Profesionales", icon: "account-tie", body: "Crear y editar Editor, Lector y perfiles de profesionales." },

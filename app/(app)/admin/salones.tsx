@@ -3,10 +3,9 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, Text
 import { Stack } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import { colors, radius, spacing } from "../../../src/theme";
-import { Salon, SalonSchedule, SalonScheduleEntry } from "../../../src/types";
+import { Jornada, Salon, SalonSchedule, SalonScheduleEntry } from "../../../src/types";
 import Breadcrumb from "../../../src/components/Breadcrumb";
-import TimeField from "../../../src/components/TimeField";
-import { SalonDraft, listenSalons, removeSalon, saveSalon } from "../../../src/data/adminRepository";
+import { SalonDraft, listenJornadas, listenSalons, removeSalon, saveSalon } from "../../../src/data/adminRepository";
 import AppIcon from "../../../src/components/AppIcon";
 import { useSnackbar } from "../../../src/context/SnackbarContext";
 import { showAlert } from "../../../src/utils/alert";
@@ -54,6 +53,7 @@ export default function SalonsScreen() {
   const { membership } = useAuth();
   const { showSnackbar } = useSnackbar();
   const [items, setItems] = useState<Salon[]>([]);
+  const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [draft, setDraft] = useState<SalonDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -63,6 +63,11 @@ export default function SalonsScreen() {
   useEffect(() => {
     if (!membership?.organizationId) return;
     return listenSalons(membership.organizationId, setItems);
+  }, [membership?.organizationId]);
+
+  useEffect(() => {
+    if (!membership?.organizationId) return;
+    return listenJornadas(membership.organizationId, setJornadas);
   }, [membership?.organizationId]);
 
   const reset = () => {
@@ -83,19 +88,27 @@ export default function SalonsScreen() {
       showAlert("Faltan datos", "Completa el nombre del salón.");
       return;
     }
-    for (const entry of draft.schedule ?? []) {
-      if (!entry.startTime || !entry.endTime) {
-        showAlert("Horario incompleto", `Completa inicio y término para la jornada ${labelForSchedule(entry.type)}.`);
-        return;
-      }
-      if (entry.endTime <= entry.startTime) {
-        showAlert("Horario inválido", `La hora de término debe ser posterior a la de inicio en ${labelForSchedule(entry.type)}.`);
-        return;
-      }
+    if (!draft.jornadaId) {
+      showAlert("Faltan datos", "Selecciona una jornada para el salón.");
+      return;
+    }
+    const selected = jornadas.find((item) => item.id === draft.jornadaId);
+    if (!selected) {
+      showAlert("Jornada no disponible", "La jornada seleccionada no existe o fue eliminada.");
+      return;
     }
     setSaving(true);
     try {
-      await saveSalon(membership.organizationId, draft, editingId ?? undefined);
+      await saveSalon(
+        membership.organizationId,
+        {
+          ...draft,
+          jornadaId: selected.id,
+          jornadaName: selected.name,
+          schedule: normalizeSchedule(selected.schedule),
+        },
+        editingId ?? undefined
+      );
       reset();
       showSnackbar("Guardado exitosamente");
     } catch (e: any) {
@@ -112,6 +125,8 @@ export default function SalonsScreen() {
       active: salon.active,
       professionalIds: salon.professionalIds,
       participantIds: salon.participantIds,
+      jornadaId: salon.jornadaId ?? "",
+      jornadaName: salon.jornadaName ?? "",
       schedule: normalizeSchedule(salon.schedule),
       maxCapacity: salon.maxCapacity ?? "",
       educationalLevel: salon.educationalLevel ?? "",
@@ -138,21 +153,10 @@ export default function SalonsScreen() {
   const labelForSchedule = (type: SalonScheduleEntry["type"]) =>
     SCHEDULE_OPTIONS.find((o) => o.value === type)?.label ?? type;
 
-  const toggleSchedule = (type: SalonScheduleEntry["type"]) => {
-    setDraft((prev) => {
-      const current = prev.schedule ?? [];
-      const exists = current.find((s) => s.type === type);
-      if (exists) return { ...prev, schedule: current.filter((s) => s.type !== type) };
-      return { ...prev, schedule: [...current, { type, startTime: "", endTime: "" }] };
-    });
-  };
-
-  const updateScheduleTime = (type: SalonScheduleEntry["type"], field: keyof Pick<SalonScheduleEntry, "startTime" | "endTime">, value: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      schedule: (prev.schedule ?? []).map((s) => (s.type === type ? { ...s, [field]: value } : s)),
-    }));
-  };
+  const selectedJornada = draft.jornadaId ? jornadas.find((item) => item.id === draft.jornadaId) : null;
+  const selectedJornadaSchedule = selectedJornada ? normalizeSchedule(selectedJornada.schedule) : [];
+  const activeJornadas = jornadas.filter((jornada) => jornada.active);
+  const selectedJornadaIsInactive = Boolean(selectedJornada && !selectedJornada.active);
 
   return (
     <View style={styles.container}>
@@ -197,35 +201,41 @@ export default function SalonsScreen() {
               />
 
               <Text style={styles.fieldLabel}>Jornada</Text>
-              {SCHEDULE_OPTIONS.map((option) => {
-                const entry = draft.schedule?.find((s) => s.type === option.value);
-                const isSelected = !!entry;
-                return (
-                  <View key={option.value} style={styles.scheduleOption}>
-                    <Pressable
-                      onPress={() => toggleSchedule(option.value)}
-                      style={[styles.checkboxRow, isSelected && styles.checkboxRowActive]}
-                    >
-                      <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
-                        {isSelected ? <Text style={styles.check}>✓</Text> : null}
-                      </View>
-                      <Text style={[styles.checkboxLabel, isSelected && styles.checkboxLabelActive]}>{option.label}</Text>
-                    </Pressable>
-                    {isSelected ? (
-                      <View style={styles.timeRow}>
-                        <View style={styles.timeField}>
-                          <Text style={styles.timeLabel}>Inicio</Text>
-                          <TimeField value={entry.startTime} onChange={(value) => updateScheduleTime(option.value, "startTime", value)} />
-                        </View>
-                        <View style={styles.timeField}>
-                          <Text style={styles.timeLabel}>Término</Text>
-                          <TimeField value={entry.endTime} onChange={(value) => updateScheduleTime(option.value, "endTime", value)} />
-                        </View>
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
+              {activeJornadas.length === 0 ? (
+                <Text style={styles.helperText}>No hay jornadas activas. Activa o crea una en Admin &gt; Jornadas.</Text>
+              ) : (
+                <View style={styles.chipRow}>
+                  {activeJornadas.map((jornada) => (
+                      <Pressable
+                        key={jornada.id}
+                        onPress={() => setDraft({ ...draft, jornadaId: jornada.id, jornadaName: jornada.name })}
+                        style={[styles.chip, draft.jornadaId === jornada.id && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, draft.jornadaId === jornada.id && styles.chipTextActive]}>{jornada.name}</Text>
+                      </Pressable>
+                    ))}
+                </View>
+              )}
+
+              {selectedJornadaIsInactive ? (
+                <View style={styles.inactiveJornadaBox}>
+                  <Text style={styles.inactiveJornadaTitle}>Jornada histórica inactiva</Text>
+                  <Text style={styles.inactiveJornadaBody}>
+                    Este salón tiene asignada una jornada inactiva: {selectedJornada?.name}. Puedes mantenerla o cambiar a una jornada activa.
+                  </Text>
+                </View>
+              ) : null}
+
+              {selectedJornada ? (
+                <View style={styles.schedulePreview}>
+                  <Text style={styles.schedulePreviewTitle}>Horario aplicado automáticamente</Text>
+                  <Text style={styles.schedulePreviewBody}>
+                    {selectedJornadaSchedule.length > 0
+                      ? selectedJornadaSchedule.map((s) => `${labelForSchedule(s.type)} ${s.startTime}-${s.endTime}`).join(" · ")
+                      : "Sin bloques"}
+                  </Text>
+                </View>
+              ) : null}
 
               <TextInput
                 value={draft.maxCapacity ? String(draft.maxCapacity) : ""}
@@ -309,6 +319,7 @@ export default function SalonsScreen() {
                 })()}
                 {salon.maxCapacity ? ` · Capacidad: ${salon.maxCapacity}` : ""}
               </Text>
+              {salon.jornadaName ? <Text style={styles.listBody}>Jornada: {salon.jornadaName}</Text> : null}
               <Text style={styles.listBody}>
                 {salon.educationalLevel
                   ? `Nivel: ${EDUCATIONAL_LEVEL_OPTIONS.find((o) => o.value === salon.educationalLevel)?.label ?? salon.educationalLevel}`
@@ -357,23 +368,19 @@ const styles = StyleSheet.create({
   // Formulario
   sectionLabel: { fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: 0 },
   fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.slate, marginBottom: spacing.xs },
+  helperText: { fontSize: 12, color: colors.slate, marginBottom: spacing.sm },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, marginBottom: spacing.sm },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
   chip: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: colors.paper },
   chipActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
   chipText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
   chipTextActive: { color: colors.tealDark },
-  scheduleOption: { marginBottom: spacing.sm },
-  checkboxRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.paper },
-  checkboxRowActive: { backgroundColor: colors.tealTint, borderColor: colors.teal },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.slate, alignItems: "center", justifyContent: "center" },
-  checkboxActive: { backgroundColor: colors.teal, borderColor: colors.teal },
-  check: { color: "#fff", fontSize: 10, fontWeight: "800" },
-  checkboxLabel: { fontSize: 13, color: colors.ink, fontWeight: "600" },
-  checkboxLabelActive: { color: colors.tealDark },
-  timeRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm, paddingLeft: spacing.md },
-  timeField: { flex: 1 },
-  timeLabel: { fontSize: 11, color: colors.slate, marginBottom: spacing.xs },
+  schedulePreview: { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.sm },
+  schedulePreviewTitle: { fontSize: 12, color: colors.ink, fontWeight: "700" },
+  schedulePreviewBody: { fontSize: 12, color: colors.slate, marginTop: spacing.xs },
+  inactiveJornadaBox: { backgroundColor: "#FFF8E6", borderWidth: 1, borderColor: "#F4D089", borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.sm },
+  inactiveJornadaTitle: { fontSize: 12, color: "#8A5A00", fontWeight: "700" },
+  inactiveJornadaBody: { fontSize: 12, color: "#8A5A00", marginTop: spacing.xs },
   toggleButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center" as const, marginBottom: spacing.sm },
   toggleButtonText: { color: colors.ink, fontWeight: "700" },
   primaryButton: { backgroundColor: colors.teal, borderRadius: radius.pill, paddingVertical: spacing.sm, alignItems: "center", marginTop: spacing.xs },

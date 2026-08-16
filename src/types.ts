@@ -134,6 +134,14 @@ export interface SalonScheduleEntry {
 
 export type SalonSchedule = SalonScheduleEntry[];
 
+export interface Jornada {
+  id: string;
+  organizationId: string;
+  name: string;
+  schedule: SalonSchedule;
+  active: boolean;
+}
+
 export type SalonEducationalLevel =
   | "sala_cuna_menor"
   | "sala_cuna_mayor"
@@ -149,6 +157,8 @@ export interface Salon {
   active: boolean;
   professionalIds: string[];
   participantIds: string[];
+  jornadaId?: string | null;
+  jornadaName?: string | null;
   schedule?: SalonSchedule;
   maxCapacity?: number;
   educationalLevel?: SalonEducationalLevel;

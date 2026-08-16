@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
-import { listenParticipants, listenPlans, listenProfiles, listenSalons } from "../../src/data/adminRepository";
-import { EconomicPlan, Person, ProfileRecord, Salon } from "../../src/types";
+import { listenJornadas, listenParticipants, listenPlans, listenProfiles, listenSalons } from "../../src/data/adminRepository";
+import { EconomicPlan, Jornada, Person, ProfileRecord, Salon } from "../../src/types";
 import { colors, radius, spacing } from "../../src/theme";
 import Breadcrumb from "../../src/components/Breadcrumb";
 import AppIcon from "../../src/components/AppIcon";
@@ -13,6 +13,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [participants, setParticipants] = useState<Person[]>([]);
+  const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [plans, setPlans] = useState<EconomicPlan[]>([]);
   const [signingOut, setSigningOut] = useState(false);
@@ -21,11 +22,13 @@ export default function HomeScreen() {
     if (membership?.role !== "admin" || !membership.organizationId) return;
     const unsubProfiles = listenProfiles(membership.organizationId, setProfiles);
     const unsubParticipants = listenParticipants(membership.organizationId, setParticipants);
+    const unsubJornadas = listenJornadas(membership.organizationId, setJornadas);
     const unsubSalons = listenSalons(membership.organizationId, setSalons);
     const unsubPlans = listenPlans(membership.organizationId, setPlans);
     return () => {
       unsubProfiles();
       unsubParticipants();
+      unsubJornadas();
       unsubSalons();
       unsubPlans();
     };
@@ -33,16 +36,18 @@ export default function HomeScreen() {
 
   const setupSteps = useMemo(
     () => [
+      { key: "jornadas", label: "Jornadas", done: jornadas.length > 0, href: "/admin/jornadas" },
       { key: "salones", label: "Salones", done: salons.length > 0, href: "/admin/salones" },
       { key: "planes", label: "Planes económicos", done: plans.length > 0, href: "/admin/planes" },
       { key: "profesionales", label: "Profesionales", done: profiles.some((p) => p.role === "editor"), href: "/admin/profesionales" },
       { key: "participantes", label: "Participantes", done: participants.length > 0, href: "/admin/participantes" },
     ],
-    [profiles, participants, salons, plans]
+    [profiles, participants, jornadas, salons, plans]
   );
   const completedSteps = setupSteps.filter((s) => s.done).length;
   const progressPercent = Math.round((completedSteps / setupSteps.length) * 100);
   const stepIconByKey: Record<string, React.ComponentProps<typeof AppIcon>["name"]> = {
+    jornadas: "clock-outline",
     salones: "door",
     planes: "cash-multiple",
     profesionales: "account-tie",
