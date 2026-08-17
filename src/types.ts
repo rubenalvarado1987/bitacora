@@ -22,6 +22,8 @@ export interface TemplateField {
   type: FieldType;
   options?: string[];
   required?: boolean;
+  /** Muestra este campo solo cuando el campo `fieldId` tiene el valor `value` */
+  dependsOn?: { fieldId: string; value: string };
 }
 
 export interface TemplateSection {
