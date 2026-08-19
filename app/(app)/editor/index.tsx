@@ -104,12 +104,6 @@ export default function EditorPanelScreen() {
 
         <View style={styles.titleRow}>
           <Text style={styles.pageTitle}>Mis participantes</Text>
-          {myProfile ? (
-            <View style={styles.profilePill}>
-              <AppIcon name="account-tie" size={14} color={colors.tealDark} />
-              <Text style={styles.profilePillText}>{myProfile.displayName}</Text>
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.filterWrap}>

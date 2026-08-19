@@ -23,7 +23,6 @@ import Breadcrumb from "../../../../../src/components/Breadcrumb";
 import { getSectionIconName } from "../../../../../src/data/sectionIcons";
 import { colors, radius, shadow, spacing } from "../../../../../src/theme";
 import { Person, ProfileRecord, Salon, TemplateField } from "../../../../../src/types";
-import { showAlert } from "../../../../../src/utils/alert";
 
 // ─── Tipos locales ────────────────────────────────────────────────────────────
 
@@ -116,6 +115,7 @@ export default function EditorNuevoRegistroScreen() {
   const isDirtyRef = useRef(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; icon?: string } | null>(null);
   // Ref para guardar la acción de navegación interceptada
   const pendingNavAction = useRef<(() => void) | null>(null);
 
@@ -132,13 +132,13 @@ export default function EditorNuevoRegistroScreen() {
   }, [membership?.organizationId]);
 
   useEffect(() => {
-    if (!membership?.organizationId || !user?.uid) return;
+    if (!membership?.organizationId || !membership?.uid) return;
     setLoadingProfile(true);
-    return listenMyProfile(membership.organizationId, user.uid, (profile) => {
+    return listenMyProfile(membership.organizationId, membership.uid, (profile) => {
       setMyProfile(profile);
       setLoadingProfile(false);
     });
-  }, [membership?.organizationId, user?.uid]);
+  }, [membership?.organizationId, membership?.uid]);
 
   // Intercepta el back nativo (botón Android / swipe iOS / router.back()) cuando hay cambios sin guardar.
   // Usa isDirtyRef (no isDirty state) para leer siempre el valor actual sin re-registrar el listener.
@@ -154,32 +154,28 @@ export default function EditorNuevoRegistroScreen() {
 
   // ── Participantes filtrados por rol ──────────────────────────────────────
 
-  const participants = useMemo<Person[]>(() => {
-    const isProfesional = membership?.role === "profesional";
-
-    // Admin/editor ven todos
-    if (!isProfesional) return allParticipants;
-
-    // Profesional: esperar a que el perfil cargue antes de mostrar algo
-    if (loadingProfile) return [];
-
-    // Profesional sin perfil vinculado → lista vacía (evita mostrar todos por error)
-    if (!myProfile) return [];
-
-    // Unión de ambas fuentes de verdad para máxima robustez:
-    // 1. salonIds guardados en el propio perfil del profesional
-    // 2. salones que listan a este perfil en professionalIds
-    const mySalonIds = new Set([
+  // Si el perfil está cargando, esperar antes de mostrar lista
+  // Si myProfile existe → el usuario es editor/profesional con salones asignados; filtrar
+  // Si myProfile es null y terminó de cargar → usuario sin perfil (admin); ver todos
+  const mySalonIds = useMemo<Set<string>>(() => {
+    if (!myProfile) return new Set();
+    return new Set([
       ...(myProfile.salonIds ?? []),
-      ...salons
-        .filter((s) => s.professionalIds.includes(myProfile.id))
-        .map((s) => s.id),
+      ...salons.filter((s) => s.professionalIds.includes(myProfile.id)).map((s) => s.id),
     ]);
+  }, [myProfile, salons]);
 
+  const participants = useMemo<Person[]>(() => {
+    // Mientras carga el perfil, no mostrar nada para evitar flash de lista completa
+    if (loadingProfile) return [];
+    // Sin perfil vinculado → es admin/lector; puede ver todos
+    if (!myProfile) return allParticipants;
+    // Con perfil → filtrar por salones asignados (igual que editor/index.tsx)
+    if (mySalonIds.size === 0) return [];
     return allParticipants.filter((p) =>
       (p.salonIds ?? []).some((sid) => mySalonIds.has(sid))
     );
-  }, [allParticipants, salons, myProfile, loadingProfile, membership?.role]);
+  }, [allParticipants, mySalonIds, myProfile, loadingProfile]);
 
   // ── Sección activa ───────────────────────────────────────────────────────
 
@@ -224,7 +220,7 @@ export default function EditorNuevoRegistroScreen() {
   async function handleSave() {
     if (!membership?.organizationId || !user) return;
     if (selectedIds.length === 0) {
-      showAlert("Sin participantes", "Selecciona al menos un participante.");
+      setAlertModal({ title: "Sin participantes", message: "Selecciona al menos un participante.", icon: "account-alert-outline" });
       return;
     }
 
@@ -233,7 +229,7 @@ export default function EditorNuevoRegistroScreen() {
       .filter((f) => f.required && !currentValues[f.id])
       .map((f) => f.label);
     if (missing.length > 0) {
-      showAlert("Faltan campos", `Completa: ${missing.join(", ")}`);
+      setAlertModal({ title: "Faltan campos", message: `Completa los siguientes campos:\n\n${missing.map((l) => `• ${l}`).join("\n")}`, icon: "alert-circle-outline" });
       return;
     }
 
@@ -263,7 +259,7 @@ export default function EditorNuevoRegistroScreen() {
       });
     } catch (e) {
       console.warn("Error al guardar:", e);
-      showAlert("Error", "No se pudo guardar el registro.");
+      setAlertModal({ title: "Error al guardar", message: "No se pudo guardar el registro. Intenta de nuevo.", icon: "close-circle-outline" });
     } finally {
       setSaving(false);
     }
@@ -290,6 +286,35 @@ export default function EditorNuevoRegistroScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+
+      {/* ── Modal de alerta de validación ── */}
+      <Modal
+        visible={alertModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAlertModal(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setAlertModal(null)}>
+          <Pressable style={styles.summaryCard} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: "#FEF3C7" }]}>
+              <AppIcon
+                name={(alertModal?.icon ?? "alert-circle-outline") as any}
+                size={36}
+                color={colors.amber}
+              />
+            </View>
+            <Text style={styles.summaryTitle}>{alertModal?.title}</Text>
+            <Text style={[styles.summarySubtitle, { textAlign: "left", alignSelf: "stretch" }]}>
+              {alertModal?.message}
+            </Text>
+            <View style={styles.summaryActions}>
+              <Pressable style={styles.summaryBtnAccept} onPress={() => setAlertModal(null)}>
+                <Text style={styles.summaryBtnAcceptText}>Entendido</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ── Modal de advertencia cambios sin guardar ── */}
       <Modal
@@ -460,6 +485,8 @@ export default function EditorNuevoRegistroScreen() {
               field={field}
               value={currentValues[field.id]}
               onChange={(v) => setField(field.id, v)}
+              accentColor={activeCat.active}
+              accentTint={activeCat.activeTint}
             />
           ))}
         </View>

@@ -166,3 +166,51 @@ export async function uploadOrganizationPhoto(
   if (!putRes.ok) throw new Error(`R2 PUT: ${putRes.status} ${putRes.statusText}`);
   return publicUrl as string;
 }
+
+
+/**
+ * Sube un archivo adjunto de bitácora (foto o PDF) a R2.
+ * Acepta una URI de imagen (ImagePicker) o una blob: URI (web file input).
+ * Mismo patrón que uploadProfilePhoto.
+ */
+export async function uploadEntryFile(fileUri: string): Promise<string> {
+  if (!auth.currentUser) throw new Error("Usuario no autenticado.");
+
+  const fileRes = await fetch(fileUri);
+  const blob = await fileRes.blob();
+  const contentType = blob.type || "image/jpeg";
+  const entryId = `entry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  if (WORKER_URL && WORKER_SECRET) {
+    const ext = contentType === "application/pdf" ? "pdf" : "jpg";
+    const form = new FormData();
+    form.append("file", blob, `${entryId}.${ext}`);
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${WORKER_SECRET}` },
+      body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(`Worker: ${data.error ?? res.statusText}`);
+    return data.publicUrl as string;
+  }
+
+  const idToken = await getIdToken(auth.currentUser);
+  const metaRes = await fetch("/api/upload-photo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ entryId, contentType }),
+  });
+  if (!metaRes.ok) {
+    const body = await metaRes.json().catch(() => ({}));
+    throw new Error(`upload-photo: ${body.error ?? metaRes.statusText}`);
+  }
+  const { uploadUrl, publicUrl } = await metaRes.json();
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: blob,
+  });
+  if (!putRes.ok) throw new Error(`R2 PUT: ${putRes.status} ${putRes.statusText}`);
+  return publicUrl as string;
+}

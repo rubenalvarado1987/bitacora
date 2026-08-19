@@ -86,7 +86,19 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
     }
   };
 
+  const roleIcon: React.ComponentProps<typeof AppIcon>["name"] =
+    membership?.role === "admin"
+      ? "shield-crown-outline"
+      : membership?.role === "profesional"
+      ? "account-tie"
+      : membership?.role === "lector" || membership?.role === "lectura"
+      ? "account-eye-outline"
+      : "account-edit-outline";
+
+  const displayName = myProfile?.displayName ?? membership?.name ?? null;
+
   return (
+    <View style={styles.wrapper}>
     <View style={styles.bar}>
       {/* ── Izquierda: avatar contextual + migas ── */}
       <View style={styles.left}>
@@ -174,6 +186,16 @@ export default function Breadcrumb({ items }: Readonly<BreadcrumbProps>) {
         </Pressable>
       </Modal>
     </View>
+
+    {displayName ? (
+      <View style={styles.userPillRow}>
+        <View style={styles.userPill}>
+          <AppIcon name={roleIcon} size={13} color={colors.tealDark} />
+          <Text style={styles.userPillText} numberOfLines={1}>{displayName}</Text>
+        </View>
+      </View>
+    ) : null}
+    </View>
   );
 }
 
@@ -186,7 +208,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    marginBottom: spacing.md,
     ...shadow.soft,
   },
   // --- Izquierda ---
@@ -200,6 +221,18 @@ const styles = StyleSheet.create({
   crumbCurrent: { fontSize: 12, color: colors.slate, fontWeight: "600" },
   // --- Derecha ---
   right: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexShrink: 0 },
+  wrapper: { marginBottom: spacing.md },
+  userPillRow: { alignItems: "flex-end", marginTop: 4 },
+  userPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.tealTint,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  userPillText: { fontSize: 12, fontWeight: "600", color: colors.tealDark },
   notifPill: {
     flexDirection: "row",
     alignItems: "center",

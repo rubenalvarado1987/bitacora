@@ -197,10 +197,11 @@ const sharedEntrySections: TemplateSection[] = [
       { id: "horarios", label: "Horarios", type: "text", required: true },
       {
         id: "fecha_vencimiento",
-        label: "Fecha de vencimiento dejada en jardín",
+        label: "Fecha de vencimiento del medicamento dejado en el jardín",
         type: "date",
         required: true,
       },
+      { id: "medicamentos_sos", label: "Medicamentos SOS", type: "text" },
       {
         id: "tiene_prescripcion",
         label: "¿Tiene prescripción médica?",

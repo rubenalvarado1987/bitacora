@@ -55,9 +55,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body ?? {});
-    const { participantId, profileId, organizationId } = body;
-    if (!participantId && !profileId && !organizationId) {
-      res.status(400).json({ error: "Falta participantId, profileId u organizationId." });
+    const { participantId, profileId, organizationId, entryId, contentType: reqContentType } = body;
+    if (!participantId && !profileId && !organizationId && !entryId) {
+      res.status(400).json({ error: "Falta participantId, profileId, organizationId o entryId." });
       return;
     }
 
@@ -68,16 +68,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    let key = `organizations/${organizationId}/${Date.now()}.jpg`;
+    const ct: string = reqContentType ?? "image/jpeg";
+    const ext = ct === "application/pdf" ? "pdf" : "jpg";
+
+    let key = `organizations/${organizationId}/${Date.now()}.${ext}`;
     if (participantId) {
-      key = `participants/${participantId}/${Date.now()}.jpg`;
+      key = `participants/${participantId}/${Date.now()}.${ext}`;
     } else if (profileId) {
-      key = `profiles/${profileId}/${Date.now()}.jpg`;
+      key = `profiles/${profileId}/${Date.now()}.${ext}`;
+    } else if (entryId) {
+      key = `entries/${entryId}/${Date.now()}.${ext}`;
     }
 
     try {
       const r2 = buildR2Client();
-      const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: "image/jpeg" });
+      const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: ct });
       const uploadUrl = await getSignedUrl(r2, cmd, { expiresIn: 300 });
       res.status(200).json({ uploadUrl, publicUrl: `${publicBase}/${key}` });
     } catch (e: any) {
