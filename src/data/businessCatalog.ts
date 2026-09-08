@@ -129,7 +129,7 @@ const sharedEntrySections: TemplateSection[] = [
         required: true,
       },
       { id: "detalle", label: "Detalle", type: "text" },
-      { id: "adjuntos", label: "Adjuntos", type: "photo" },
+      { id: "adjuntos", label: "Adjuntos (fotos / archivos)", type: "photo-multi" },
     ],
   },
   {

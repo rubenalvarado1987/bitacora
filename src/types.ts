@@ -7,6 +7,7 @@ export type FieldType =
   | "scale"
   | "checklist"
   | "photo"
+  | "photo-multi"
   | "signature";
 
 export type BusinessCategoryId =
