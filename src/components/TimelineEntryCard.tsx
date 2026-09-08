@@ -332,17 +332,24 @@ export function TimelineEntryCard({ entry, isLast }: Readonly<TimelineEntryCardP
           </View>
           <View style={styles.textBlock}>
             <Text style={styles.date}>{formatFecha(fecha)}</Text>
-            {valueEntries.slice(0, 3).map(([, val]) => {
-              const urls = parseUrls(val as string | number | boolean);
-              if (urls.length > 0) {
+            {(() => {
+              // Separar campos de imagen de campos de texto
+              // Los campos de imagen se muestran SIEMPRE (independiente de su posición alfabética)
+              // Los campos de texto se limitan a 2
+              const imageEntries = valueEntries.filter(([, val]) => parseUrls(val as string | number | boolean).length > 0);
+              const textEntries = valueEntries.filter(([, val]) => parseUrls(val as string | number | boolean).length === 0).slice(0, 2);
+              return [...imageEntries, ...textEntries].map(([, val]) => {
+                const urls = parseUrls(val as string | number | boolean);
+                if (urls.length > 0) {
+                  return (
+                    <ReadOnlyGallery key={String(val).slice(0, 40)} urls={urls} accentColor={cat.color} />
+                  );
+                }
                 return (
-                  <ReadOnlyGallery key={String(val).slice(0, 40)} urls={urls} accentColor={cat.color} />
+                  <Text key={String(val)} style={styles.value}>{String(val)}</Text>
                 );
-              }
-              return (
-                <Text key={String(val)} style={styles.value}>{String(val)}</Text>
-              );
-            })}
+              });
+            })()}
             {entry.authorName ? (
               <Text style={styles.author}>Registrado por {entry.authorName}</Text>
             ) : null}

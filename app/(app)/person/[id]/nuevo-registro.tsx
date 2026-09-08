@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -35,6 +36,18 @@ const SECTION_COLORS: Record<string, { active: string; activeTint: string }> = {
 
 function getSectionColor(id: string) {
   return SECTION_COLORS[id] ?? { active: colors.tealDark, activeTint: colors.tealTint };
+}
+
+function parseUrlsForSummary(value: string): string[] {
+  if (!value) return [];
+  if (value.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") return parsed as string[];
+    } catch { /* ignore */ }
+  }
+  if (value.startsWith("http://") || value.startsWith("https://")) return [value];
+  return [];
 }
 
 function todayISO() {
@@ -338,12 +351,34 @@ export default function NuevoRegistroScreen() {
             </View>
             <Text style={styles.summaryTitle}>Registro guardado</Text>
             <Text style={styles.summarySubtitle}>{savedSummary?.sectionTitle}</Text>
-            {savedSummary?.fields.map((f) => (
-              <View key={f.label} style={styles.summaryRow}>
-                <Text style={styles.summaryRowLabel}>{f.label}</Text>
-                <Text style={styles.summaryRowValue}>{f.value}</Text>
-              </View>
-            ))}
+            {savedSummary?.fields.map((f) => {
+              const urls = parseUrlsForSummary(f.value);
+              return (
+                <View key={f.label} style={styles.summaryRow}>
+                  <Text style={styles.summaryRowLabel}>{f.label}</Text>
+                  {urls.length > 0 ? (
+                    <View style={styles.summaryThumbRow}>
+                      {urls.slice(0, 5).map((url, i) =>
+                        url.toLowerCase().includes(".pdf") ? (
+                          <View key={i} style={styles.summaryThumbPdf}>
+                            <AppIcon name="file-pdf-box" size={18} color="#ef4444" />
+                          </View>
+                        ) : (
+                          <Image key={i} source={{ uri: url }} style={styles.summaryThumb} />
+                        )
+                      )}
+                      {urls.length > 5 && (
+                        <View style={styles.summaryThumbMore}>
+                          <Text style={styles.summaryThumbMoreText}>+{urls.length - 5}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <Text style={styles.summaryRowValue}>{f.value}</Text>
+                  )}
+                </View>
+              );
+            })}
             <Pressable style={styles.summaryBtnAccept} onPress={closeSummary}>
               <Text style={styles.summaryBtnAcceptText}>Aceptar</Text>
             </Pressable>
@@ -504,6 +539,25 @@ const styles = StyleSheet.create({
   },
   summaryRowLabel: { fontSize: 12, color: colors.slate, flex: 1 },
   summaryRowValue: { fontSize: 12, color: colors.ink, fontWeight: "600", flex: 1, textAlign: "right" },
+  summaryThumbRow: { flexDirection: "row", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" },
+  summaryThumb: { width: 44, height: 44, borderRadius: 6 },
+  summaryThumbPdf: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryThumbMore: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryThumbMoreText: { fontSize: 11, fontWeight: "700", color: colors.slate },
   summaryBtnAccept: {
     backgroundColor: colors.teal,
     borderRadius: radius.pill,
