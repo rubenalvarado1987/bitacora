@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import AppIcon from "./AppIcon";
 import { colors, radius, shadow, spacing } from "../theme";
 import { Entry } from "../types";
@@ -31,7 +39,6 @@ const DEFAULT_CAT = {
 };
 
 function getCategory(type: string) {
-  // Búsqueda exacta primero, luego por inclusión de palabra clave
   if (CATEGORY[type]) return CATEGORY[type];
   const key = Object.keys(CATEGORY).find((k) => type.toLowerCase().includes(k.toLowerCase()));
   return key ? CATEGORY[key] : DEFAULT_CAT;
@@ -45,6 +52,251 @@ function formatFecha(fecha: Date) {
     minute: "2-digit",
   });
 }
+
+/**
+ * Parsea el valor como galería de URLs:
+ * - JSON array  → ["url1","url2",...]
+ * - URL suelta  → "https://..."  (campo tipo photo)
+ * Retorna [] si el valor no es ninguno de los dos.
+ */
+function parseUrls(value: string | number | boolean): string[] {
+  if (typeof value !== "string" || !value) return [];
+  // JSON array
+  if (value.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
+        return parsed as string[];
+      }
+    } catch {
+      // not valid JSON
+    }
+  }
+  // URL suelta (foto única)
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return [value];
+  }
+  return [];
+}
+
+function isPdf(url: string) {
+  return url.toLowerCase().includes(".pdf");
+}
+
+// ─── Galería de solo lectura con carrusel ────────────────────────────────────
+
+interface ReadOnlyGalleryProps {
+  urls: string[];
+  accentColor?: string;
+}
+
+function ReadOnlyGallery({ urls, accentColor = colors.teal }: ReadOnlyGalleryProps) {
+  const [carouselOpen, setCarouselOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (urls.length === 0) return null;
+
+  function openAt(i: number) {
+    setActiveIndex(i);
+    setCarouselOpen(true);
+  }
+
+  const current = urls[activeIndex];
+
+  return (
+    <View style={galleryStyles.wrap}>
+      {/* Thumbnails */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={galleryStyles.strip}>
+        {urls.map((url, i) => (
+          <Pressable key={url + i} onPress={() => openAt(i)} style={galleryStyles.thumb}>
+            {isPdf(url) ? (
+              <View style={[galleryStyles.pdfThumb, { backgroundColor: accentColor + "26" }]}>
+                <AppIcon name="file-pdf-box" size={22} color={accentColor} />
+              </View>
+            ) : (
+              <Image source={{ uri: url }} style={galleryStyles.thumbImg} />
+            )}
+            <View style={galleryStyles.eyeBadge}>
+              <AppIcon name="eye-outline" size={10} color="#fff" />
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Text style={[galleryStyles.countLabel, { color: accentColor }]}>
+        {urls.length} {urls.length === 1 ? "archivo" : "archivos"}
+      </Text>
+
+      {/* Carrusel modal */}
+      {carouselOpen ? (
+        <Modal transparent animationType="fade" onRequestClose={() => setCarouselOpen(false)}>
+          <View style={galleryStyles.overlay}>
+            {/* Cabecera */}
+            <View style={galleryStyles.carouselHeader}>
+              <Text style={galleryStyles.carouselCounter}>
+                {activeIndex + 1} / {urls.length}
+              </Text>
+              <Pressable onPress={() => setCarouselOpen(false)} hitSlop={10}>
+                <AppIcon name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+
+            {/* Imagen principal / PDF */}
+            <View style={galleryStyles.carouselMain}>
+              {isPdf(current) ? (
+                <Pressable
+                  style={galleryStyles.pdfCard}
+                  onPress={() => {
+                    if (typeof window !== "undefined") window.open(current, "_blank");
+                  }}
+                >
+                  <AppIcon name="file-pdf-box" size={48} color="#ef4444" />
+                  <Text style={galleryStyles.pdfCardText}>Abrir PDF →</Text>
+                </Pressable>
+              ) : (
+                <Image
+                  source={{ uri: current }}
+                  style={galleryStyles.carouselImg}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+
+            {/* Flechas de navegación */}
+            <View style={galleryStyles.navRow}>
+              <Pressable
+                style={[galleryStyles.navBtn, activeIndex === 0 && galleryStyles.navBtnDisabled]}
+                onPress={() => setActiveIndex((p) => Math.max(0, p - 1))}
+                disabled={activeIndex === 0}
+              >
+                <AppIcon name="chevron-left" size={28} color="#fff" />
+              </Pressable>
+              <Pressable
+                style={[galleryStyles.navBtn, activeIndex === urls.length - 1 && galleryStyles.navBtnDisabled]}
+                onPress={() => setActiveIndex((p) => Math.min(urls.length - 1, p + 1))}
+                disabled={activeIndex === urls.length - 1}
+              >
+                <AppIcon name="chevron-right" size={28} color="#fff" />
+              </Pressable>
+            </View>
+
+            {/* Tiras de miniaturas */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={galleryStyles.carouselStripContent}
+              style={galleryStyles.carouselStrip}
+            >
+              {urls.map((url, i) => (
+                <Pressable key={url + i} onPress={() => setActiveIndex(i)}>
+                  {isPdf(url) ? (
+                    <View
+                      style={[
+                        galleryStyles.stripThumb,
+                        i === activeIndex && galleryStyles.stripThumbActive,
+                        { backgroundColor: "#333" },
+                      ]}
+                    >
+                      <AppIcon name="file-pdf-box" size={18} color="#ef4444" />
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: url }}
+                      style={[
+                        galleryStyles.stripThumb,
+                        i === activeIndex && galleryStyles.stripThumbActive,
+                      ]}
+                    />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      ) : null}
+    </View>
+  );
+}
+
+const galleryStyles = StyleSheet.create({
+  wrap: { marginTop: spacing.xs },
+  strip: { flexDirection: "row" },
+  thumb: { width: 64, height: 64, borderRadius: radius.sm, marginRight: 6, overflow: "hidden" },
+  thumbImg: { width: 64, height: 64 },
+  pdfThumb: {
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.sm,
+  },
+  eyeBadge: {
+    position: "absolute",
+    bottom: 3,
+    right: 3,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 8,
+    padding: 2,
+  },
+  countLabel: { fontSize: 10, fontWeight: "600", marginTop: 4 },
+  // Carrusel
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    justifyContent: "space-between",
+  },
+  carouselHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.lg,
+    paddingTop: 48,
+  },
+  carouselCounter: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  carouselMain: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
+  carouselImg: { width: "100%", height: "100%", maxHeight: 400 },
+  pdfCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1a1a1a",
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  pdfCardText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  navRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.xl,
+    paddingVertical: spacing.md,
+  },
+  navBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navBtnDisabled: { opacity: 0.3 },
+  carouselStrip: { maxHeight: 72 },
+  carouselStripContent: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: 6,
+  },
+  stripThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stripThumbActive: { borderColor: "#fff" },
+});
+
+// ─── Card principal ──────────────────────────────────────────────────────────
 
 interface TimelineEntryCardProps {
   entry: Entry;
@@ -73,16 +325,24 @@ export function TimelineEntryCard({ entry, isLast }: Readonly<TimelineEntryCardP
           <Text style={[styles.badgeText, { color: cat.color }]}>{cat.label}</Text>
         </View>
 
-        {/* Ícono grande de categoría + contenido textual */}
+        {/* Ícono grande de categoría + contenido */}
         <View style={styles.contentRow}>
           <View style={[styles.iconCircle, { backgroundColor: cat.bg }]}>
             <AppIcon name={cat.iconName} size={24} color={cat.color} />
           </View>
           <View style={styles.textBlock}>
             <Text style={styles.date}>{formatFecha(fecha)}</Text>
-            {valueEntries.slice(0, 3).map(([, val]) => (
-              <Text key={String(val)} style={styles.value}>{String(val)}</Text>
-            ))}
+            {valueEntries.slice(0, 3).map(([, val]) => {
+              const urls = parseUrls(val as string | number | boolean);
+              if (urls.length > 0) {
+                return (
+                  <ReadOnlyGallery key={String(val).slice(0, 40)} urls={urls} accentColor={cat.color} />
+                );
+              }
+              return (
+                <Text key={String(val)} style={styles.value}>{String(val)}</Text>
+              );
+            })}
             {entry.authorName ? (
               <Text style={styles.author}>Registrado por {entry.authorName}</Text>
             ) : null}
@@ -97,19 +357,31 @@ export function TimelineEntryCard({ entry, isLast }: Readonly<TimelineEntryCardP
         </View>
       </View>
 
-      {/* Popover de detalles rápidos */}
+      {/* Popover de detalles */}
       {popoverVisible ? (
         <Modal transparent animationType="fade" onRequestClose={() => setPopoverVisible(false)}>
           <Pressable style={styles.overlay} onPress={() => setPopoverVisible(false)}>
             <View style={styles.popover}>
               <Text style={styles.popoverTitle}>{cat.label}</Text>
-              {valueEntries.map(([key, val]) => (
-                <View key={key} style={styles.popoverRow}>
-                  <AppIcon name={cat.iconName} size={14} color={colors.slate} />
-                  <Text style={styles.popoverKey}>{key}:</Text>
-                  <Text style={styles.popoverVal}>{String(val)}</Text>
-                </View>
-              ))}
+              {valueEntries.map(([key, val]) => {
+                const urls = parseUrls(val as string | number | boolean);
+                if (urls.length > 0) {
+                  return (
+                    <View key={key} style={styles.popoverRow}>
+                      <AppIcon name={cat.iconName} size={14} color={colors.slate} />
+                      <Text style={styles.popoverKey}>{key}:</Text>
+                      <ReadOnlyGallery urls={urls} accentColor={cat.color} />
+                    </View>
+                  );
+                }
+                return (
+                  <View key={key} style={styles.popoverRow}>
+                    <AppIcon name={cat.iconName} size={14} color={colors.slate} />
+                    <Text style={styles.popoverKey}>{key}:</Text>
+                    <Text style={styles.popoverVal}>{String(val)}</Text>
+                  </View>
+                );
+              })}
               {entry.authorName ? (
                 <View style={styles.popoverRow}>
                   <AppIcon name="account-outline" size={14} color={colors.slate} />
