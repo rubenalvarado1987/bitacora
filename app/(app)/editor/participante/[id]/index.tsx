@@ -91,6 +91,26 @@ export default function EditorParticipantScreen() {
     return listenSalons(membership.organizationId, setSalons);
   }, [membership?.organizationId]);
 
+  const recentActivityPhotos = useMemo<string[]>(() => {
+    const photos: string[] = [];
+    for (const entry of entries) {
+      if (!entry.type.toLowerCase().includes("actividad")) continue;
+      for (const val of Object.values(entry.values ?? {})) {
+        if (typeof val !== "string" || !val.startsWith("[")) continue;
+        try {
+          const urls: string[] = JSON.parse(val);
+          for (const url of urls) {
+            if (typeof url === "string" && url.startsWith("http") && !url.toLowerCase().includes(".pdf")) {
+              photos.push(url);
+              if (photos.length >= 3) return photos;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    return photos;
+  }, [entries]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -182,26 +202,6 @@ export default function EditorParticipantScreen() {
   const assignedSalonNames = (person.salonIds ?? [])
     .map((salonId) => salons.find((s) => s.id === salonId)?.name)
     .filter(Boolean) as string[];
-
-  const recentActivityPhotos = useMemo<string[]>(() => {
-    const photos: string[] = [];
-    for (const entry of entries) {
-      if (!entry.type.toLowerCase().includes("actividad")) continue;
-      for (const val of Object.values(entry.values ?? {})) {
-        if (typeof val !== "string" || !val.startsWith("[")) continue;
-        try {
-          const urls: string[] = JSON.parse(val);
-          for (const url of urls) {
-            if (typeof url === "string" && url.startsWith("http") && !url.toLowerCase().includes(".pdf")) {
-              photos.push(url);
-              if (photos.length >= 3) return photos;
-            }
-          }
-        } catch { /* ignore */ }
-      }
-    }
-    return photos;
-  }, [entries]);
 
   const emotionalEntries = entries
     .filter((e) => e.type === "Emocional")
