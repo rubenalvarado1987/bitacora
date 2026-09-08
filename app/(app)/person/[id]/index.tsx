@@ -60,6 +60,27 @@ export default function PersonScreen() {
     return unsubscribe;
   }, [membership?.organizationId, id]);
 
+  /** Últimas 3 imágenes (sin PDFs) cargadas en entradas de ACTIVIDADES */
+  const recentActivityPhotos = useMemo<string[]>(() => {
+    const photos: string[] = [];
+    for (const entry of entries) {
+      if (!entry.type.toLowerCase().includes("actividad")) continue;
+      for (const val of Object.values(entry.values ?? {})) {
+        if (typeof val !== "string" || !val.startsWith("[")) continue;
+        try {
+          const urls: string[] = JSON.parse(val);
+          for (const url of urls) {
+            if (typeof url === "string" && url.startsWith("http") && !url.toLowerCase().includes(".pdf")) {
+              photos.push(url);
+              if (photos.length >= 3) return photos;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    return photos;
+  }, [entries]);
+
   const timelineItems = useMemo<TimelineListItem[]>(() => {
     const groups = groupEntriesByDay(entries);
     let entryIndex = 0;
@@ -110,7 +131,7 @@ export default function PersonScreen() {
         contentContainerStyle={{ padding: spacing.lg }}
         ListHeaderComponent={
           <View style={{ marginBottom: spacing.lg }}>
-            <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} showExtendedKeyInfo />
+            <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} showExtendedKeyInfo recentPhotos={recentActivityPhotos} />
             <Text style={styles.timelineLabel}>Registros</Text>
           </View>
         }

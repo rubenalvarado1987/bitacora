@@ -1,5 +1,5 @@
-import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import React, { useState } from "react";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { colors, radius, shadow, spacing } from "../theme";
 import AppIcon from "./AppIcon";
 import { Person } from "../types";
@@ -80,16 +80,121 @@ function renderPersonAvatar(person: Person, initials: string) {
   );
 }
 
-function renderRecentPhotos(recentPhotos: string[]) {
-  if (recentPhotos.length > 0) {
-    return recentPhotos.slice(0, 5).map((uri) => <Image key={uri} source={{ uri }} style={styles.photo} />);
+function RecentPhotosSection({ recentPhotos }: { recentPhotos: string[] }) {
+  const [carouselOpen, setCarouselOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  function openAt(i: number) {
+    setActiveIndex(i);
+    setCarouselOpen(true);
   }
-  return [0, 1, 2].map((i) => (
-    <View key={i} style={[styles.photo, styles.photoPlaceholder]}>
-      <AppIcon name="image-outline" size={16} color={colors.tealTint} />
-    </View>
-  ));
+
+  const photos = recentPhotos.slice(0, 5);
+
+  return (
+    <>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {photos.length > 0
+          ? photos.map((uri, i) => (
+              <Pressable key={uri + i} onPress={() => openAt(i)}>
+                <Image source={{ uri }} style={styles.photo} />
+              </Pressable>
+            ))
+          : [0, 1, 2].map((i) => (
+              <View key={i} style={[styles.photo, styles.photoPlaceholder]}>
+                <AppIcon name="image-outline" size={16} color={colors.tealTint} />
+              </View>
+            ))}
+      </ScrollView>
+
+      {carouselOpen && photos.length > 0 ? (
+        <Modal transparent animationType="fade" onRequestClose={() => setCarouselOpen(false)}>
+          <View style={carouselStyles.overlay}>
+            {/* Cabecera */}
+            <View style={carouselStyles.header}>
+              <Text style={carouselStyles.counter}>{activeIndex + 1} / {photos.length}</Text>
+              <Pressable onPress={() => setCarouselOpen(false)} hitSlop={12}>
+                <AppIcon name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+
+            {/* Imagen principal */}
+            <View style={carouselStyles.main}>
+              <Image
+                source={{ uri: photos[activeIndex] }}
+                style={carouselStyles.mainImg}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Flechas */}
+            <View style={carouselStyles.navRow}>
+              <Pressable
+                style={[carouselStyles.navBtn, activeIndex === 0 && carouselStyles.navBtnDisabled]}
+                onPress={() => setActiveIndex((p) => Math.max(0, p - 1))}
+                disabled={activeIndex === 0}
+              >
+                <AppIcon name="chevron-left" size={28} color="#fff" />
+              </Pressable>
+              <Pressable
+                style={[carouselStyles.navBtn, activeIndex === photos.length - 1 && carouselStyles.navBtnDisabled]}
+                onPress={() => setActiveIndex((p) => Math.min(photos.length - 1, p + 1))}
+                disabled={activeIndex === photos.length - 1}
+              >
+                <AppIcon name="chevron-right" size={28} color="#fff" />
+              </Pressable>
+            </View>
+
+            {/* Tira de miniaturas */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={carouselStyles.stripContent}
+              style={carouselStyles.strip}
+            >
+              {photos.map((uri, i) => (
+                <Pressable key={uri + i} onPress={() => setActiveIndex(i)}>
+                  <Image
+                    source={{ uri }}
+                    style={[carouselStyles.stripThumb, i === activeIndex && carouselStyles.stripThumbActive]}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      ) : null}
+    </>
+  );
 }
+
+const carouselStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "space-between" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.lg,
+    paddingTop: 48,
+  },
+  counter: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  main: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
+  mainImg: { width: "100%", height: "100%", maxHeight: 420 },
+  navRow: { flexDirection: "row", justifyContent: "center", gap: spacing.xl, paddingVertical: spacing.md },
+  navBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navBtnDisabled: { opacity: 0.3 },
+  strip: { maxHeight: 72 },
+  stripContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: 6 },
+  stripThumb: { width: 52, height: 52, borderRadius: 6, borderWidth: 2, borderColor: "transparent" },
+  stripThumbActive: { borderColor: "#fff" },
+});
 
 interface ProfileSidebarProps {
   person: Person;
@@ -226,14 +331,8 @@ export default function ProfileSidebar({
         <View style={[styles.section, isMobile && styles.sectionMobile]}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionLabel}>Fotos recientes</Text>
-            <View style={styles.arrowRow}>
-              <Pressable hitSlop={8}><AppIcon name="chevron-left" size={14} color={colors.slate} /></Pressable>
-              <Pressable hitSlop={8}><AppIcon name="chevron-right" size={14} color={colors.slate} /></Pressable>
-            </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {renderRecentPhotos(recentPhotos)}
-          </ScrollView>
+          <RecentPhotosSection recentPhotos={recentPhotos} />
         </View>
 
         <View style={[styles.sectionDivider, isMobile && styles.sectionDividerMobile]} />

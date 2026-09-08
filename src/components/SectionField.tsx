@@ -186,9 +186,9 @@ function PhotoGalleryPicker({
 
   const commit = (next: string[]) => onChange(JSON.stringify(next));
 
-  const pickAndUpload = async (uri: string) => {
+  const pickAndUploadOne = async (uri: string, currentUrls: string[]): Promise<string[]> => {
     const publicUrl = await uploadEntryFile(uri);
-    commit([...urls, publicUrl]);
+    return [...currentUrls, publicUrl];
   };
 
   const handleAdd = async () => {
@@ -200,26 +200,53 @@ function PhotoGalleryPicker({
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/jpeg,image/png,image/webp,application/pdf";
-      input.multiple = false;
+      input.multiple = true;
       input.onchange = async () => {
-        const file = input.files?.[0];
-        if (!file) return;
+        const files = Array.from(input.files ?? []);
+        if (files.length === 0) return;
+        const remaining = MAX_FILES - urls.length;
+        const toUpload = files.slice(0, remaining);
+        if (files.length > remaining) {
+          Alert.alert("Límite parcial", `Solo se subirán ${remaining} archivo(s). Máximo ${MAX_FILES} en total.`);
+        }
         setUploading(true);
-        try { await pickAndUpload(URL.createObjectURL(file)); }
-        catch (e: any) { Alert.alert("Error", e?.message ?? "No se pudo subir el archivo."); }
-        finally { setUploading(false); }
+        try {
+          let accumulated = [...urls];
+          for (const file of toUpload) {
+            accumulated = await pickAndUploadOne(URL.createObjectURL(file), accumulated);
+            commit(accumulated); // actualizar en tiempo real mientras sube
+          }
+        } catch (e: any) {
+          Alert.alert("Error", e?.message ?? "No se pudo subir el archivo.");
+        } finally {
+          setUploading(false);
+        }
       };
       input.click();
       return;
     }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería."); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    const remaining = MAX_FILES - urls.length;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+    });
     if (result.canceled) return;
     setUploading(true);
-    try { await pickAndUpload(result.assets[0].uri); }
-    catch (e: any) { Alert.alert("Error", e?.message ?? "No se pudo subir el archivo."); }
-    finally { setUploading(false); }
+    try {
+      let accumulated = [...urls];
+      for (const asset of result.assets) {
+        accumulated = await pickAndUploadOne(asset.uri, accumulated);
+        commit(accumulated);
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "No se pudo subir el archivo.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const openCarousel = (index: number) => { setCarouselIndex(index); setShowCarousel(true); };

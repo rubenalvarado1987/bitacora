@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -183,6 +183,26 @@ export default function EditorParticipantScreen() {
     .map((salonId) => salons.find((s) => s.id === salonId)?.name)
     .filter(Boolean) as string[];
 
+  const recentActivityPhotos = useMemo<string[]>(() => {
+    const photos: string[] = [];
+    for (const entry of entries) {
+      if (!entry.type.toLowerCase().includes("actividad")) continue;
+      for (const val of Object.values(entry.values ?? {})) {
+        if (typeof val !== "string" || !val.startsWith("[")) continue;
+        try {
+          const urls: string[] = JSON.parse(val);
+          for (const url of urls) {
+            if (typeof url === "string" && url.startsWith("http") && !url.toLowerCase().includes(".pdf")) {
+              photos.push(url);
+              if (photos.length >= 3) return photos;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    return photos;
+  }, [entries]);
+
   const emotionalEntries = entries
     .filter((e) => e.type === "Emocional")
     .slice(0, 7);
@@ -211,6 +231,7 @@ export default function EditorParticipantScreen() {
           person={person}
           assignedSalonNames={assignedSalonNames}
           showExtendedKeyInfo
+          recentPhotos={recentActivityPhotos}
           attendanceMonthPercent={attendance?.monthPercent ?? null}
           attendanceYearPercent={attendance?.yearPercent ?? null}
           emotionalStateLabel={typeof latestEmotionalState === "string" ? latestEmotionalState : null}
