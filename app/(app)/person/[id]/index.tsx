@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { doc, collection, onSnapshot, orderBy, query, getDoc } from "firebase/firestore";
 import { db } from "../../../../src/firebase";
@@ -11,19 +11,26 @@ import { colors, radius, spacing } from "../../../../src/theme";
 import Breadcrumb from "../../../../src/components/Breadcrumb";
 import { groupEntriesByDay } from "../../../../src/utils/entries";
 import { listenSalons } from "../../../../src/data/adminRepository";
+import { AttendanceSummary, getAttendanceSummaries } from "../../../../src/data/attendanceRepository";
 
-type TimelineListItem =
-  | { kind: "header"; key: string; label: string }
-  | { kind: "entry"; key: string; entry: Entry; isLast: boolean };
+function useGridColumns() {
+  const { width } = useWindowDimensions();
+  if (width >= 860) return 4;
+  if (width >= 600) return 3;
+  if (width >= 400) return 2;
+  return 1;
+}
 
 export default function PersonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { membership } = useAuth();
   const router = useRouter();
 
+  const numColumns = useGridColumns();
   const [person, setPerson] = useState<Person | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const canEdit = membership?.role === "admin" || membership?.role === "editor" || membership?.role === "profesional";
 
@@ -44,6 +51,15 @@ export default function PersonScreen() {
     if (!membership?.organizationId) return;
     return listenSalons(membership.organizationId, setSalons);
   }, [membership?.organizationId]);
+
+  useEffect(() => {
+    if (!membership?.organizationId || !id) return;
+    let alive = true;
+    getAttendanceSummaries(membership.organizationId, [id])
+      .then((data) => { if (alive) setAttendance(data[id] ?? null); })
+      .catch(() => { if (alive) setAttendance(null); });
+    return () => { alive = false; };
+  }, [membership?.organizationId, id]);
 
   useEffect(() => {
     if (!membership?.organizationId || !id) return;
@@ -81,24 +97,7 @@ export default function PersonScreen() {
     return photos;
   }, [entries]);
 
-  const timelineItems = useMemo<TimelineListItem[]>(() => {
-    const groups = groupEntriesByDay(entries);
-    let entryIndex = 0;
-    const totalEntries = entries.length;
-    return groups.flatMap((group) => {
-      const header: TimelineListItem = { kind: "header", key: `header-${group.dateKey}`, label: group.label };
-      const entryItems = group.items.map((entry) => {
-        entryIndex += 1;
-        return {
-          kind: "entry",
-          key: entry.id,
-          entry,
-          isLast: entryIndex === totalEntries,
-        } as TimelineListItem;
-      });
-      return [header, ...entryItems];
-    });
-  }, [entries]);
+  const dayGroups = useMemo(() => groupEntriesByDay(entries), [entries]);
 
   if (loading) {
     return (
@@ -125,27 +124,39 @@ export default function PersonScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: person.name }]} />
 
-      <FlatList
-        data={timelineItems}
-        keyExtractor={(item) => item.key}
-        contentContainerStyle={{ padding: spacing.lg }}
-        ListHeaderComponent={
-          <View style={{ marginBottom: spacing.lg }}>
-            <ProfileSidebar person={person} assignedSalonNames={assignedSalonNames} showExtendedKeyInfo recentPhotos={recentActivityPhotos} />
-            <Text style={styles.timelineLabel}>Registros</Text>
-          </View>
-        }
-        renderItem={({ item }) =>
-          item.kind === "header" ? (
-            <Text style={styles.dayHeader}>{item.label}</Text>
-          ) : (
-            <TimelineEntryCard entry={item.entry} isLast={item.isLast} />
-          )
-        }
-        ListEmptyComponent={
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={{ marginBottom: spacing.lg }}>
+          <ProfileSidebar
+            person={person}
+            assignedSalonNames={assignedSalonNames}
+            showExtendedKeyInfo
+            recentPhotos={recentActivityPhotos}
+            attendanceMonthPercent={attendance?.monthPercent ?? null}
+            attendanceYearPercent={attendance?.yearPercent ?? null}
+          />
+          <Text style={styles.timelineLabel}>Registros</Text>
+        </View>
+
+        {dayGroups.length === 0 ? (
           <Text style={styles.emptyText}>Todavía no hay registros para esta persona.</Text>
-        }
-      />
+        ) : (
+          dayGroups.map((group) => (
+            <View key={group.dateKey} style={styles.dayGroup}>
+              <Text style={styles.dayHeader}>{group.label}</Text>
+              <View style={styles.entriesGrid}>
+                {group.items.map((entry) => (
+                  <View
+                    key={entry.id}
+                    style={[styles.entryGridItem, { width: `${100 / numColumns}%` as any }]}
+                  >
+                    <TimelineEntryCard entry={entry} isLast={false} gridMode={numColumns > 1} />
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
 
       {canEdit ? (
         <Pressable style={styles.fab} onPress={() => router.push(`/person/${id}/nuevo-registro`)}>
@@ -159,6 +170,10 @@ export default function PersonScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  scrollContent: { padding: spacing.lg, paddingBottom: spacing.xl + 80 },
+  dayGroup: { marginBottom: spacing.lg },
+  entriesGrid: { flexDirection: "row", flexWrap: "wrap" },
+  entryGridItem: { padding: spacing.xs },
   timelineLabel: {
     fontSize: 11,
     textTransform: "uppercase",

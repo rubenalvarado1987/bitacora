@@ -301,21 +301,25 @@ const galleryStyles = StyleSheet.create({
 interface TimelineEntryCardProps {
   entry: Entry;
   isLast: boolean;
+  /** En modo grid no se muestra el dot/línea de timeline */
+  gridMode?: boolean;
 }
 
-export function TimelineEntryCard({ entry, isLast }: Readonly<TimelineEntryCardProps>) {
+export function TimelineEntryCard({ entry, isLast, gridMode = false }: Readonly<TimelineEntryCardProps>) {
   const [popoverVisible, setPopoverVisible] = useState(false);
   const cat = getCategory(entry.type);
   const fecha = entry.createdAt?.toDate ? entry.createdAt.toDate() : new Date();
   const valueEntries = Object.entries(entry.values ?? {});
 
   return (
-    <View style={styles.row}>
-      {/* Línea vertical + nodo de color */}
-      <View style={styles.timeline}>
-        <View style={[styles.node, { backgroundColor: cat.color, shadowColor: cat.color }]} />
-        {!isLast ? <View style={styles.connector} /> : null}
-      </View>
+    <View style={gridMode ? styles.rowGrid : styles.row}>
+      {/* Línea vertical + nodo de color (solo en lista) */}
+      {!gridMode ? (
+        <View style={styles.timeline}>
+          <View style={[styles.node, { backgroundColor: cat.color, shadowColor: cat.color }]} />
+          {!isLast ? <View style={styles.connector} /> : null}
+        </View>
+      ) : null}
 
       {/* Card del registro */}
       <View style={[styles.card, { borderColor: cat.border }]}>
@@ -406,6 +410,7 @@ export function TimelineEntryCard({ entry, isLast }: Readonly<TimelineEntryCardP
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", marginBottom: spacing.md },
+  rowGrid: { flexDirection: "row", marginBottom: 0, flex: 1 },
   // --- Timeline vertical ---
   timeline: { width: 28, alignItems: "center" },
   node: {

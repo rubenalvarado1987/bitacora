@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
@@ -22,9 +23,18 @@ import { TimelineEntryCard } from "../../../../src/components/TimelineEntryCard"
 import AppIcon from "../../../../src/components/AppIcon";
 import { groupEntriesByDay } from "../../../../src/utils/entries";
 
+function useGridColumns() {
+  const { width } = useWindowDimensions();
+  if (width >= 860) return 4;
+  if (width >= 600) return 3;
+  if (width >= 400) return 2;
+  return 1;
+}
+
 export default function ApoderadoParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { membership } = useAuth();
+  const numColumns = useGridColumns();
   const [person, setPerson] = useState<Person | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -79,6 +89,26 @@ export default function ApoderadoParticipantScreen() {
     return listenSalons(membership.organizationId, setSalons);
   }, [membership?.organizationId]);
 
+  const recentActivityPhotos = useMemo<string[]>(() => {
+    const photos: string[] = [];
+    for (const entry of entries) {
+      if (!entry.type.toLowerCase().includes("actividad")) continue;
+      for (const val of Object.values(entry.values ?? {})) {
+        if (typeof val !== "string" || !val.startsWith("[")) continue;
+        try {
+          const urls: string[] = JSON.parse(val);
+          for (const url of urls) {
+            if (typeof url === "string" && url.startsWith("http") && !url.toLowerCase().includes(".pdf")) {
+              photos.push(url);
+              if (photos.length >= 3) return photos;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    return photos;
+  }, [entries]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -122,24 +152,25 @@ export default function ApoderadoParticipantScreen() {
       ) : (
         (() => {
           const groups = groupEntriesByDay(entries);
-          return groups.map((group, groupIndex) => {
-            const entriesBefore = groups.slice(0, groupIndex).reduce((acc, g) => acc + g.items.length, 0);
-            return (
-              <View key={group.dateKey} style={styles.dayGroup}>
-                <Text style={styles.dayHeader}>{group.label}</Text>
-                {group.items.map((entry, index) => {
-                  const globalIndex = entriesBefore + index;
-                  return (
+          return groups.map((group) => (
+            <View key={group.dateKey} style={styles.dayGroup}>
+              <Text style={styles.dayHeader}>{group.label}</Text>
+              <View style={styles.entriesGrid}>
+                {group.items.map((entry) => (
+                  <View
+                    key={entry.id}
+                    style={[styles.entryGridItem, { width: `${100 / numColumns}%` as any }]}
+                  >
                     <TimelineEntryCard
-                      key={entry.id}
                       entry={entry}
-                      isLast={globalIndex === entries.length - 1}
+                      isLast={false}
+                      gridMode={numColumns > 1}
                     />
-                  );
-                })}
+                  </View>
+                ))}
               </View>
-            );
-          });
+            </View>
+          ));
         })()
       )}
     </>
@@ -176,6 +207,7 @@ export default function ApoderadoParticipantScreen() {
           <ProfileSidebar
             person={person}
             assignedSalonNames={assignedSalonNames}
+            recentPhotos={recentActivityPhotos}
             attendanceMonthPercent={attendance?.monthPercent ?? null}
             attendanceYearPercent={attendance?.yearPercent ?? null}
             emotionalStateLabel={typeof latestEmotionalState === "string" ? latestEmotionalState : null}
@@ -231,7 +263,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     marginTop: spacing.xs,
   },
-  dayGroup: { marginBottom: spacing.sm },
+  dayGroup: { marginBottom: spacing.lg },
+  entriesGrid: { flexDirection: "row", flexWrap: "wrap" },
+  entryGridItem: { padding: spacing.xs },
   dayHeader: {
     fontSize: 12,
     fontWeight: "700",

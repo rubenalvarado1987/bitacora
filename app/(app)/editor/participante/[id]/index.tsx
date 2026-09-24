@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -23,10 +24,19 @@ import { TimelineEntryCard } from "../../../../../src/components/TimelineEntryCa
 import AppIcon from "../../../../../src/components/AppIcon";
 import { groupEntriesByDay } from "../../../../../src/utils/entries";
 
+function useGridColumns() {
+  const { width } = useWindowDimensions();
+  if (width >= 860) return 4;
+  if (width >= 600) return 3;
+  if (width >= 400) return 2;
+  return 1;
+}
+
 export default function EditorParticipantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { membership } = useAuth();
   const router = useRouter();
+  const numColumns = useGridColumns();
   const [person, setPerson] = useState<Person | null>(null);
   const [myProfile, setMyProfile] = useState<ProfileRecord | null>(null);
   const [salons, setSalons] = useState<Salon[]>([]);
@@ -42,21 +52,30 @@ export default function EditorParticipantScreen() {
   }, [membership?.organizationId, membership?.uid]);
 
   useEffect(() => {
-    if (!membership?.organizationId || !id || !myProfile) return;
+    if (!membership?.organizationId || !id) return;
+    const isAdminOrEditor = membership.role === "admin" || membership.role === "editor";
+    // Para profesional: esperar que myProfile cargue antes de filtrar por salón.
+    if (!isAdminOrEditor && !myProfile) return;
+
     (async () => {
       const snap = await getDoc(
         doc(db, "organizations", membership.organizationId, "people", id)
       );
       if (snap.exists()) {
         const data = { id: snap.id, ...snap.data() } as Person;
-        // Un profesional solo puede ver participantes de sus propios salones asignados.
-        const mySalonIds = new Set(myProfile.salonIds ?? []);
-        const belongsToMySalon = (data.salonIds ?? []).some((sid) => mySalonIds.has(sid));
-        if (belongsToMySalon) setPerson(data);
+        if (isAdminOrEditor) {
+          // Admin/editor pueden ver todos los participantes sin restricción de salón.
+          setPerson(data);
+        } else {
+          // Profesional: solo ve participantes de sus salones asignados.
+          const mySalonIds = new Set(myProfile!.salonIds ?? []);
+          const belongsToMySalon = (data.salonIds ?? []).some((sid) => mySalonIds.has(sid));
+          if (belongsToMySalon) setPerson(data);
+        }
       }
       setLoading(false);
     })();
-  }, [membership?.organizationId, id, myProfile]);
+  }, [membership?.organizationId, id, myProfile, membership?.role]);
 
   useEffect(() => {
     if (!membership?.organizationId || !id || !person) return;
@@ -176,24 +195,25 @@ export default function EditorParticipantScreen() {
       ) : (
         (() => {
           const groups = groupEntriesByDay(entries);
-          return groups.map((group, groupIndex) => {
-            const entriesBefore = groups.slice(0, groupIndex).reduce((acc, g) => acc + g.items.length, 0);
-            return (
-              <View key={group.dateKey} style={styles.dayGroup}>
-                <Text style={styles.dayHeader}>{group.label}</Text>
-                {group.items.map((entry, index) => {
-                  const globalIndex = entriesBefore + index;
-                  return (
+          return groups.map((group) => (
+            <View key={group.dateKey} style={styles.dayGroup}>
+              <Text style={styles.dayHeader}>{group.label}</Text>
+              <View style={styles.entriesGrid}>
+                {group.items.map((entry) => (
+                  <View
+                    key={entry.id}
+                    style={[styles.entryGridItem, { width: `${100 / numColumns}%` as any }]}
+                  >
                     <TimelineEntryCard
-                      key={entry.id}
                       entry={entry}
-                      isLast={globalIndex === entries.length - 1}
+                      isLast={false}
+                      gridMode={numColumns > 1}
                     />
-                  );
-                })}
+                  </View>
+                ))}
               </View>
-            );
-          });
+            </View>
+          ));
         })()
       )}
     </>
@@ -244,7 +264,7 @@ export default function EditorParticipantScreen() {
         style={styles.fab}
         onPress={() => router.push(`/editor/participante/${id}/nuevo-registro` as any)}
       >
-        <AppIcon name="plus" size={28} color="#fff" />
+        <Text style={styles.fabText}>+</Text>
       </Pressable>
     </View>
   );
@@ -297,7 +317,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     marginTop: spacing.xs,
   },
-  dayGroup: { marginBottom: spacing.sm },
+  dayGroup: { marginBottom: spacing.lg },
+  entriesGrid: { flexDirection: "row", flexWrap: "wrap" },
+  entryGridItem: { padding: spacing.xs },
   dayHeader: {
     fontSize: 12,
     fontWeight: "700",
@@ -322,5 +344,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
+  fabText: { color: "#fff", fontSize: 28, lineHeight: 30 },
 });
 
