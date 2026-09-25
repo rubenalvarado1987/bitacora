@@ -188,6 +188,10 @@ export interface ChatThread {
   participantId?: string;
   memberIds: string[];
   readBy?: Record<string, any>;
+  status?: "open" | "closed";
+  createdAt?: any;
+  closedAt?: any;
+  closedBy?: string;
 }
 
 export interface ChatMessage {

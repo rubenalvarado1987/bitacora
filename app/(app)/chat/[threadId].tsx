@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -9,9 +10,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../../src/context/AuthContext";
 import {
+  closeThread,
   listenMessages,
   listenThread,
   markThreadRead,
@@ -22,11 +24,13 @@ import { listenParticipants, listenProfiles } from "../../../src/data/adminRepos
 import { colors, radius, spacing } from "../../../src/theme";
 import { ChatMessage, ChatThread, Person, ProfileRecord } from "../../../src/types";
 import { showAlert } from "../../../src/utils/alert";
+import AppIcon from "../../../src/components/AppIcon";
 import Breadcrumb from "../../../src/components/Breadcrumb";
 
 export default function ChatThreadScreen() {
   const { threadId } = useLocalSearchParams<{ threadId: string }>();
   const { membership, user } = useAuth();
+  const router = useRouter();
   const flatRef = useRef<FlatList>(null);
 
   const [thread, setThread] = useState<ChatThread | null>(null);
@@ -37,6 +41,7 @@ export default function ChatThreadScreen() {
   const [sending, setSending] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
 
   useEffect(() => {
     if (!membership?.organizationId || !threadId) return;
@@ -77,10 +82,31 @@ export default function ChatThreadScreen() {
     participants.forEach((person) => {
       if (person.linkedUid) map.set(person.linkedUid, person.displayName ?? person.name);
     });
+    // El usuario actual siempre resuelve con su propio nombre (cubre al admin y cualquier rol sin perfil en la colección)
+    if (user?.uid && membership?.name) {
+      map.set(user.uid, membership.name);
+    }
     return map;
-  }, [profiles, participants]);
+  }, [profiles, participants, user?.uid, membership?.name]);
 
   const canManageMembers = membership?.role === "admin" || membership?.role === "editor" || membership?.role === "profesional";
+  const canCloseThread = membership?.role === "admin" || membership?.role === "profesional";
+  const isClosed = thread?.status === "closed";
+
+  const handleCloseThread = () => {
+    setShowConfirmClose(true);
+  };
+
+  const doCloseThread = async () => {
+    if (!membership?.organizationId || !threadId || !user) return;
+    setShowConfirmClose(false);
+    try {
+      await closeThread(membership.organizationId, threadId, user.uid);
+      router.push("/chat" as any);
+    } catch (e: any) {
+      showAlert("Error", e?.message ?? "No se pudo cerrar el hilo.");
+    }
+  };
 
   // el id del campo "apoderado" varía según la plantilla de rubro y datos antiguos de demo
   const guardianName = (p: Person) =>
@@ -172,11 +198,24 @@ export default function ChatThreadScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <Breadcrumb items={[{ label: "Inicio", href: "/" }, { label: "Chat", href: "/chat" }, { label: thread?.title ?? "Chat" }]} />
+        <View style={styles.headerActions}>
+          {isClosed ? (
+            <View style={styles.closedBanner}>
+              <Text style={styles.closedBannerText}>Hilo cerrado · solo lectura</Text>
+            </View>
+          ) : canCloseThread && thread ? (
+            <Pressable onPress={handleCloseThread} style={styles.closeThreadButton}>
+              <Text style={styles.closeThreadButtonText}>Cerrar hilo</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {thread ? (
         <View style={styles.membersRow}>
-          {thread.memberIds.map((uid) => (
+          {thread.memberIds
+            .filter((uid) => memberLabels.has(uid) && !(uid === user?.uid && membership?.role === "admin"))
+            .map((uid) => (
             <View key={uid} style={styles.memberChip}>
               <Text style={styles.memberChipText}>{memberLabels.get(uid) ?? "Miembro"}</Text>
               {canManageMembers ? (
@@ -230,38 +269,81 @@ export default function ChatThreadScreen() {
           return (
             <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
               {!isMe ? (
-                <Text style={styles.bubbleSender}>{item.authorName}</Text>
+                <Text style={styles.bubbleSender}>
+                  {item.authorName}{item.authorRole === "admin" ? " (Admin)" : ""}
+                </Text>
+              ) : item.authorRole === "admin" ? (
+                <Text style={[styles.bubbleSender, styles.bubbleSenderAdmin]}>Tú (Admin)</Text>
               ) : null}
               <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>{item.text}</Text>
               <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>
                 {formatTime(item.createdAt)}
               </Text>
               {readAt ? (
-                <Text style={styles.readReceipt}>↑ Leído {formatTime(readAt)}</Text>
+                <Text style={[styles.readReceipt, isMe && styles.readReceiptMe]}>↑ Leído {formatTime(readAt)}</Text>
               ) : null}
             </View>
           );
         }}
       />
 
-      <View style={styles.inputBar}>
-        <TextInput
-          style={styles.textInput}
-          value={text}
-          onChangeText={setText}
-          placeholder="Escribe un mensaje…"
-          placeholderTextColor={colors.slate}
-          multiline
-          onSubmitEditing={handleSend}
-        />
-        <Pressable
-          onPress={handleSend}
-          disabled={sending || !text.trim()}
-          style={[styles.sendButton, (!text.trim() || sending) && styles.sendButtonDisabled]}
-        >
-          <Text style={styles.sendButtonText}>Enviar</Text>
+      {/* Modal de confirmación para cerrar hilo */}
+      <Modal
+        visible={showConfirmClose}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmClose(false)}
+      >
+        <Pressable style={styles.confirmOverlay} onPress={() => setShowConfirmClose(false)}>
+          <Pressable style={styles.confirmCard} onPress={() => {}}>
+            <View style={styles.confirmIconWrap}>
+              <AppIcon name="alert-circle-outline" size={40} color="#EF4444" />
+            </View>
+            <Text style={styles.confirmTitle}>Cerrar hilo</Text>
+            <Text style={styles.confirmMessage}>
+              ¿Seguro que deseas cerrar esta conversación? Quedará en el histórico y no se podrán enviar más mensajes.
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => setShowConfirmClose(false)}>
+                <Text style={styles.confirmCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.confirmDanger} onPress={doCloseThread}>
+                <Text style={styles.confirmDangerText}>Cerrar hilo</Text>
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
-      </View>
+      </Modal>
+
+      {isClosed ? (
+        <View style={styles.closedInputBar}>
+          <Text style={styles.closedInputBarText}>Esta conversación está cerrada.</Text>
+        </View>
+      ) : (
+        <View style={styles.inputBar}>
+          <TextInput
+            style={styles.textInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="Escribe un mensaje…"
+            placeholderTextColor={colors.slate}
+            multiline
+            onKeyPress={(e: any) => {
+              if (e.nativeEvent.key === "Enter" && !e.nativeEvent.shiftKey) {
+                e.preventDefault?.();
+                handleSend();
+              }
+            }}
+          />
+          <Pressable
+            onPress={handleSend}
+            disabled={sending || !text.trim()}
+            style={[styles.sendButton, (!text.trim() || sending) && styles.sendButtonDisabled]}
+          >
+            <Text style={styles.sendButtonText}>Enviar</Text>
+          </Pressable>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -292,6 +374,30 @@ function getReadReceipt(thread: ChatThread | null, message: ChatMessage, myUid?:
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.paper },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  headerActions: { flexDirection: "row", justifyContent: "flex-end", marginTop: spacing.xs },
+  closeThreadButton: {
+    borderWidth: 1,
+    borderColor: "#EF4444",
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+  },
+  closeThreadButtonText: { fontSize: 12, color: "#EF4444", fontWeight: "700" },
+  closedBanner: {
+    backgroundColor: colors.line,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+  },
+  closedBannerText: { fontSize: 12, color: colors.slate, fontWeight: "600" },
+  closedInputBar: {
+    padding: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    backgroundColor: colors.paper,
+    alignItems: "center",
+  },
+  closedInputBarText: { fontSize: 13, color: colors.slate },
   messageList: { padding: spacing.md, paddingBottom: spacing.lg },
   bubble: {
     maxWidth: "80%",
@@ -310,10 +416,11 @@ const styles = StyleSheet.create({
   },
   bubbleThem: {},
   bubbleSender: { fontSize: 11, fontWeight: "700", color: colors.tealDark, marginBottom: 2 },
+  bubbleSenderAdmin: { color: "rgba(255,255,255,0.75)", textAlign: "right" },
   bubbleText: { fontSize: 14, color: colors.ink },
   bubbleTextMe: { color: "#fff" },
   bubbleTime: { fontSize: 10, color: colors.slate, marginTop: 4, textAlign: "right" },
-  bubbleTimeMe: { color: "rgba(255,255,255,0.7)" },
+  bubbleTimeMe: { color: "rgba(255,255,255,0.92)" },
   readReceipt: {
     fontSize: 10,
     color: colors.green,
@@ -321,6 +428,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontWeight: "700",
   },
+  readReceiptMe: { color: "rgba(255,255,255,0.92)" },
   empty: { color: colors.slate, fontSize: 13, textAlign: "center", marginTop: spacing.xl },
   membersRow: {
     flexDirection: "row",
@@ -406,4 +514,46 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: { opacity: 0.5 },
   sendButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  // Confirm close modal
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  confirmCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: spacing.xl,
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  confirmIconWrap: { marginBottom: spacing.md },
+  confirmTitle: { fontSize: 18, fontWeight: "700", color: colors.ink, textAlign: "center", marginBottom: 8 },
+  confirmMessage: { fontSize: 13, color: colors.slate, textAlign: "center", lineHeight: 20, marginBottom: spacing.lg },
+  confirmActions: { flexDirection: "row", gap: spacing.sm, alignSelf: "stretch" },
+  confirmCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+  },
+  confirmCancelText: { fontSize: 14, fontWeight: "600", color: colors.ink },
+  confirmDanger: {
+    flex: 1,
+    backgroundColor: "#EF4444",
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+  },
+  confirmDangerText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
